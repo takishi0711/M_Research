@@ -1,0 +1,121 @@
+#pragma once
+
+#include <string>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <random>
+
+#include "random_walker.hpp"
+#include "random_walker_generator.hpp"
+
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
+
+struct RandomWalkerQueue {
+
+private : 
+    std::queue<RandomWalker> RWer_Queue;
+    std::mutex mtx_RWer_Queue;
+    std::condition_variable cv_RWer_Queue; 
+    int drop_count = 0;
+
+    // RED 関連
+    double wq = 1;
+    int minth = 5;
+    int maxth = 100;
+    double maxp = 0.1;
+    int avg = 0;
+    int count = -1;
+    double c1 = maxp / (maxth - minth);
+    double c2 = maxp * minth / (maxth - minth);
+
+    // 乱数関連
+    std::mt19937 mt{std::random_device{}()}; // メルセンヌ・ツイスタを用いた乱数生成
+    std::uniform_real_distribution<double>  rand_double{0, 1.0}; // 0~1のランダムな値
+
+public :
+
+    // RWer_Queue に RWer を Push 
+    void Push(RandomWalker RWer, RandomWalkerGenerator& RG, std::string hostip);
+
+    // RED
+    bool Random_Early_Detection(int queue_size);
+
+    // RWer_Queue から RWer を取り出す
+    RandomWalker Pop(); 
+    
+};
+
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
+
+inline void RandomWalkerQueue::Push(RandomWalker RWer, RandomWalkerGenerator& RG, std::string hostip) {
+    { // 排他制御
+        std::unique_lock<std::mutex> uniq_lk(mtx_RWer_Queue);
+
+        bool queue_empty = RWer_Queue.empty();
+
+        // RED(Random Early Detection)
+        if (Random_Early_Detection(RWer_Queue.size())) { // Push
+            // キューに Push
+            RWer_Queue.push(RWer);
+
+            if (queue_empty) { // 空キューでなくなった通知
+                cv_RWer_Queue.notify_all();
+            }
+
+        } else { // 破棄
+            if (RWer.get_hostip() == hostip) { // もし起点サーバがここだったら起点ノードに輻輳を通知
+                // 輻輳通知
+                RG.congestion_notification_from_RQ(RWer.get_source_node());
+                // RWer の終了判定を true に
+                RG.set_RWer_flag(RWer.get_RWer_ID(), true);
+            }
+            drop_count++;
+        }
+    }
+}
+
+inline bool RandomWalkerQueue::Random_Early_Detection(int queue_size) {
+    if (minth <= queue_size && queue_size < maxth) { // minth <= queue_size < maxth
+        count++;
+        double pb = c1 * queue_size - c2;
+        double pa = pb / (1.0 - pb * count);
+
+        // 確率 pa で破棄
+        if (rand_double(mt) < pa) {
+            count = 0;
+            return false; // 破棄
+        } else {
+            return true;
+        }
+
+    } else if (maxth <= queue_size) { // maxth <= queue_size
+        count = 0;
+        return false; // 破棄   
+
+    } else { // queue_size < minth
+        count = -1;
+        return true;
+
+    }
+}
+
+inline RandomWalker RandomWalkerQueue::Pop() {
+    { // 排他制御
+        std::unique_lock<std::mutex> uniq_lk(mtx_RWer_Queue);
+
+        // RWer_Queue が空じゃなくなるまで待機
+        cv_RWer_Queue.wait(uniq_lk, [&]{ return !RWer_Queue.empty(); });
+
+        RandomWalker RWer = RWer_Queue.front();
+
+        RWer_Queue.pop();
+
+        return RWer;
+    }
+
+}
