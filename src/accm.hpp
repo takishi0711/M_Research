@@ -15,6 +15,7 @@
 #include <vector>
 #include <sstream>
 #include <random>
+#include <thread>
 
 #include <cereal/cereal.hpp>
 #include <cereal/archives/json.hpp>
@@ -113,7 +114,15 @@ inline ACCM::ACCM(std::string dir_path) {
 
 
 inline void ACCM::start() {
+    // スレッドを開始させる
+    std::thread thread_generate_RWer(&ACCM::generate_RWer, this);
+    std::thread thread_one_hop_RW(&ACCM::one_hop_RW, this);
+    std::thread thread_send_RWer(&ACCM::send_RWer, this);
+    std::thread thread_send_fin_RWer(&ACCM::send_fin_RWer, this);
+    std::thread thread_receive_RWer(&ACCM::receive_RWer, this);
 
+    // プログラムを終了させないようにする
+    thread_one_hop_RW.join();
 }
 
 
