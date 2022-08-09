@@ -13,15 +13,15 @@
 struct RandomWalkerGenerator {
 
 private : 
-    std::unordered_map<std::string, int> end_count_of_RWer_per_node; // 終了した RWer の数 (開始頂点毎)
-    std::unordered_map<std::string, bool> congestion_flag_per_node; // 直接通知による輻輳判定 (開始頂点毎)
-    std::unordered_map<std::string, std::deque<int>> buffer_of_RWer_ID_per_node; // 生成した RWer の ID を格納するリングバッファ (開始頂点毎)
-    std::unordered_map<int, std::chrono::system_clock::time_point> start_time_per_RWer_ID; // RWer 毎の開始時刻
-    std::unordered_map<std::string, int> T_per_node; // RWer の推定帰還時間 T (micros) (開始頂点毎)
-    std::unordered_map<std::string, int> ave_RTT_per_node; // RWer の平均帰還時間 (micros) (開始頂点毎)
-    std::unordered_map<std::string, int> Deviation_per_node; // RWer の帰還時間の偏差 (micros) (開始頂点毎)
-    std::unordered_map<int, bool> end_flag_per_RWer; // 終了判定 (RWer 毎)
-    std::unordered_map<std::string, int> count_x_per_node; // sleep を決定するためのカウント (開始頂点毎)
+    std::unordered_map<std::int32_t, int> end_count_of_RWer_per_node; // 終了した RWer の数 (開始頂点毎)
+    std::unordered_map<std::int32_t, bool> congestion_flag_per_node; // 直接通知による輻輳判定 (開始頂点毎)
+    std::unordered_map<std::int32_t, std::deque<std::int32_t>> buffer_of_RWer_ID_per_node; // 生成した RWer の ID を格納するリングバッファ (開始頂点毎)
+    std::unordered_map<std::int32_t, std::chrono::system_clock::time_point> start_time_per_RWer_ID; // RWer 毎の開始時刻
+    std::unordered_map<std::int32_t, int> T_per_node; // RWer の推定帰還時間 T (micros) (開始頂点毎)
+    std::unordered_map<std::int32_t, int> ave_RTT_per_node; // RWer の平均帰還時間 (micros) (開始頂点毎)
+    std::unordered_map<std::int32_t, int> Deviation_per_node; // RWer の帰還時間の偏差 (micros) (開始頂点毎)
+    std::unordered_map<std::int32_t, bool> end_flag_per_RWer; // 終了判定 (RWer 毎)
+    std::unordered_map<std::int32_t, int> count_x_per_node; // sleep を決定するためのカウント (開始頂点毎)
     std::mutex mtx_end_count_of_RWer_per_node;
     std::mutex mtx_congestion_flag_per_node;
     std::mutex mtx_T_per_node;
@@ -40,26 +40,26 @@ private :
 public :
 
     // スロースタート
-    void slowstart(std::string node_ID, int RWer_ID);
+    void slowstart(std::int32_t node_ID, std::int32_t RWer_ID);
     
     // RG に RWer を登録
-    void register_RWer(std::string node_ID, int RWer_ID);
+    void register_RWer(std::int32_t node_ID, std::int32_t RWer_ID);
 
     // RQ からの輻輳直接通知
-    void congestion_notification_from_RQ(std::string node_ID);
+    void congestion_notification_from_RQ(std::int32_t node_ID);
 
     // RWer の終了判定を flag に
-    void set_RWer_flag(int RWer_ID, bool flag);
+    void set_RWer_flag(std::int32_t RWer_ID, bool flag);
 
     // 正常に終了した RWer に対する処理
-    void fin_RWer_proc(std::string node_ID, int RWer_ID);
+    void fin_RWer_proc(std::int32_t node_ID, std::int32_t RWer_ID);
 };
 
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
-inline void RandomWalkerGenerator::slowstart(std::string node_ID, int RWer_ID) {
+inline void RandomWalkerGenerator::slowstart(std::int32_t node_ID, std::int32_t RWer_ID) {
     int cnt_end;
     {
         std::unique_lock<std::mutex> uniq_lk(mtx_end_count_of_RWer_per_node);
@@ -132,7 +132,7 @@ inline void RandomWalkerGenerator::slowstart(std::string node_ID, int RWer_ID) {
     std::this_thread::sleep_for(std::chrono::nanoseconds(sleep_time));
 }
 
-inline void RandomWalkerGenerator::register_RWer(std::string node_ID, int RWer_ID) {
+inline void RandomWalkerGenerator::register_RWer(std::int32_t node_ID, std::int32_t RWer_ID) {
     // RWer をリングバッファに追加
     buffer_of_RWer_ID_per_node[node_ID].push_front(RWer_ID);
     if (buffer_of_RWer_ID_per_node[node_ID].size() > max_size_of_RWer_ID_buffer) { // 最大サイズをオーバーしたら後ろのものをpop
@@ -152,14 +152,14 @@ inline void RandomWalkerGenerator::register_RWer(std::string node_ID, int RWer_I
     }
 }
 
-inline void RandomWalkerGenerator::congestion_notification_from_RQ(std::string node_ID) {
+inline void RandomWalkerGenerator::congestion_notification_from_RQ(std::int32_t node_ID) {
     {
         std::unique_lock<std::mutex> uniq_lk(mtx_congestion_flag_per_node);
         congestion_flag_per_node[node_ID] = true;
     }
 }
 
-inline void RandomWalkerGenerator::set_RWer_flag(int RWer_ID, bool flag) {
+inline void RandomWalkerGenerator::set_RWer_flag(std::int32_t RWer_ID, bool flag) {
     // RWer の終了判定を flag に
     {
         std::unique_lock<std::mutex> uniq_lk(mtx_end_flag_per_RWer);
@@ -167,7 +167,7 @@ inline void RandomWalkerGenerator::set_RWer_flag(int RWer_ID, bool flag) {
     }
 }
 
-inline void RandomWalkerGenerator::fin_RWer_proc(std::string node_ID, int RWer_ID) {
+inline void RandomWalkerGenerator::fin_RWer_proc(std::int32_t node_ID, std::int32_t RWer_ID) {
     // RWer の生存時間計測
     int t;
     {

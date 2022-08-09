@@ -17,9 +17,6 @@
 #include <random>
 #include <thread>
 
-#include <cereal/cereal.hpp>
-#include <cereal/archives/json.hpp>
-
 #include "graph.hpp"
 #include "random_walk.hpp"
 #include "random_walker.hpp"
@@ -132,10 +129,10 @@ inline void ACCM::generate_RWer() {
         // 開始通知を受けるまでロック
         start_message.lock_while_false();
 
-        int RWer_ID = 0;
+        std::int32_t RWer_ID = 0;
 
         // 全てのノードから指定回数 RWer を生成
-        for (std::string node_ID : graph.get_my_vertices()) { // 全てのノードから
+        for (std::int32_t node_ID : graph.get_my_vertices()) { // 全てのノードから
             
             int number_of_RW_execution = RW.get_number_of_RW_execution();
 
@@ -166,7 +163,7 @@ inline void ACCM::one_hop_RW() {
         RandomWalker RWer = RQ.Pop();
 
         // 現在ノードの隣接ノード集合を入手
-        std::vector<std::string> adjacency_vertices = graph.get_adjacency_vertices(RWer.get_current_node());
+        std::vector<std::int32_t> adjacency_vertices = graph.get_adjacency_vertices(RWer.get_current_node());
 
         // 次数
         int degree = adjacency_vertices.size();
@@ -188,7 +185,7 @@ inline void ACCM::one_hop_RW() {
 
             // ランダムな隣接ノードへ遷移
             std::uniform_int_distribution<int> rand_int(0, degree-1);
-            std::string next_node = adjacency_vertices[rand_int(mt)];
+            std::int32_t next_node = adjacency_vertices[rand_int(mt)];
             RWer.update_RWer(next_node);
 
             // 遷移先ノードの持ち主が自サーバか他サーバかで分類
@@ -229,13 +226,10 @@ inline void ACCM::send_RWer() {
         addr.sin_addr.s_addr = inet_addr(graph.get_IP(RWer.get_current_node()).c_str()); // IPアドレス, inet_addr()関数はアドレスの翻訳
 
         // メッセージ作成
-        std::string message = "2"; // メッセージ ID (send_RWer は 2)
-        std::stringstream ss;
-        { // RWer のシリアライズ
-            cereal::JSONOutputArchive o_archive(ss);
-            o_archive(RWer);
-        }    
-        message += ss.str();
+        char message_ID = '2'; // メッセージ ID (send_RWer は 2)
+        std::string message;
+        message += message_ID;
+        message += RWer.serialize();  
 
        // データ送信
        sendto(sockfd, message.c_str(), message.size(), 0, (struct sockaddr *)&addr, sizeof(addr)); 
@@ -247,7 +241,7 @@ inline void ACCM::send_fin_RWer() {
 
     // ソケットの生成
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sockfd < 0) { // エラー処理
+    if  (sockfd < 0) { // エラー処理
         perror("socket");
         exit(1); // 異常終了
     }    
@@ -264,16 +258,13 @@ inline void ACCM::send_fin_RWer() {
         addr.sin_addr.s_addr = inet_addr(graph.get_IP(RWer.get_current_node()).c_str()); // IPアドレス, inet_addr()関数はアドレスの翻訳
 
         // メッセージ作成
-        std::string message = "3"; // メッセージ ID (send_fin_RWer は 3)
-        std::stringstream ss;
-        { // RWer のシリアライズ
-            cereal::JSONOutputArchive o_archive(ss);
-            o_archive(RWer);
-        }    
-        message += ss.str();
+        char message_ID = '3'; // メッセージ ID (send_fin_RWer は 3)
+        std::string message;
+        message += message_ID;
+        message += RWer.serialize();  
 
-       // データ送信
-       sendto(sockfd, message.c_str(), message.size(), 0, (struct sockaddr *)&addr, sizeof(addr)); 
+        // データ送信
+        sendto(sockfd, message.c_str(), message.size(), 0, (struct sockaddr *)&addr, sizeof(addr)); 
     }
 }
 
@@ -324,11 +315,8 @@ inline void ACCM::receive_RWer(int sockfd) {
         } else if (message_ID == '2') { // 他のサーバから遷移してきた RWer 
             
             // RWer へデシリアライズ
-            std::stringstream ss;
-            ss << message.substr(1);
-            RandomWalker RWer;
-            cereal::JSONInputArchive i_archive(ss);
-            i_archive(RWer);
+            message = message.substr(1);
+            RandomWalker RWer(message);
 
             // RWer_Queue に Push
             RQ.Push(RWer, RG, hostip);
@@ -336,11 +324,8 @@ inline void ACCM::receive_RWer(int sockfd) {
         } else if (message_ID == '3') { // 他のサーバで終了した RWer
 
             // RWer へデシリアライズ
-            std::stringstream ss;
-            ss << message.substr(1);
-            RandomWalker RWer;
-            cereal::JSONInputArchive i_archive(ss);
-            i_archive(RWer);
+            message = message.substr(1);
+            RandomWalker RWer(message);
 
             // 終了した RWer の処理
             RG.fin_RWer_proc(RWer.get_source_node(), RWer.get_RWer_ID());
