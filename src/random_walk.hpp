@@ -7,7 +7,7 @@
 struct RandomWalk {
 
 private :
-    int number_of_RW_execution; // RW の実行回数
+    int number_of_RW_execution = 10000; // RW の実行回数
     double alpha = 0.2; // RW の終了確率
 
 public :

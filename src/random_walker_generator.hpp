@@ -53,6 +53,10 @@ public :
 
     // 正常に終了した RWer に対する処理
     void fin_RWer_proc(std::int32_t node_ID, std::int32_t RWer_ID);
+
+    // 終了した RWer の数 (開始頂点毎) を入手
+    int get_end_count_of_RWer(std::int32_t node_ID);
+
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -193,5 +197,12 @@ inline void RandomWalkerGenerator::fin_RWer_proc(std::int32_t node_ID, std::int3
     {
         std::unique_lock<std::mutex> uniq_lk(mtx_end_count_of_RWer_per_node);
         end_count_of_RWer_per_node[node_ID]++;
+    }
+}
+
+inline int RandomWalkerGenerator::get_end_count_of_RWer(std::int32_t node_ID) {
+    {
+        std::unique_lock<std::mutex> uniq_lk(mtx_end_count_of_RWer_per_node);
+        return end_count_of_RWer_per_node[node_ID];
     }
 }

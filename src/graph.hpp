@@ -50,7 +50,7 @@ inline void Graph::init(std::string dir_path, std::string hostname, std::string 
         std::vector<std::string> words; // [ノード 1, ノード 2, ノード 2 の IP アドレス]
         std::stringstream sstream(reading_line_buffer);
         std::string word;
-        while (std::getline(sstream, word, ',')) { // カンマ区切りで word を取り出す
+        while (std::getline(sstream, word, ' ')) { // 空白区切りで word を取り出す
             words.push_back(word);
         }
         Graph::add_edge(words, hostip); // グラフデータに情報追加

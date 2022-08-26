@@ -35,7 +35,7 @@ struct ACCM {
 private :
     std::string hostname; // 自サーバ のホスト名
     std::string hostip; // 自サーバ の IP アドレス
-    std::string userip; // ユーザーの IP アドレス
+    std::string startmanagerip; // StartManager の IP アドレス
     Graph graph; // グラフデータ
     RandomWalk RW; // Random Walk 実行関連
     RandomWalkerGenerator RG; // RG 関連
@@ -73,6 +73,9 @@ public :
 
     // 他サーバから RWer を受信し, 処理する関数
     void receive_RWer(int sockfd);
+
+    // 全実行が終了した時に StartManager にメッセージを送る関数
+    void send_to_startmanager();
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -131,12 +134,15 @@ inline void ACCM::generate_RWer() {
 
         std::int32_t RWer_ID = 0;
 
-        // 全てのノードから指定回数 RWer を生成
+        int number_of_RW_execution = RW.get_number_of_RW_execution();
+
+        // 全てのノードから指定回数 の RW が終了するまで RWer を生成
         for (std::int32_t node_ID : graph.get_my_vertices()) { // 全てのノードから
             
-            int number_of_RW_execution = RW.get_number_of_RW_execution();
+            while (1) { // 指定回数 の RW が終了するまで RWer を生成
+                // 指定回数分終わってたら終了
+                if (RG.get_end_count_of_RWer(node_ID) == number_of_RW_execution) break;
 
-            for (int i = 0; i < number_of_RW_execution; i++) { // 指定回数の RWer を生成 (RW を実行)
                 // RWer を生成
                 RandomWalker RWer(node_ID, RWer_ID, hostip);
 
@@ -153,6 +159,8 @@ inline void ACCM::generate_RWer() {
             }
 
         }
+
+        send_to_startmanager();
     }
 }
 
@@ -303,11 +311,20 @@ inline void ACCM::receive_RWer(int sockfd) {
         std::string message = buf; // メッセージをchar*型からstring型に変換
         if (message.size() < 1) continue;
 
-        // message -> メッセージ ID + RWer
+        // message -> メッセージ ID + メッセージ本体
         char message_ID = message[0];
 
         // メッセージ ID に則した処理
         if (message_ID == '1') { // ユーザーからの実験開始の合図
+
+            // StartManager の IP アドレス
+            std::string ip;
+            for (int i = 0; i < 4; i++) {
+                ip += std::to_string(int(message[1 + i]));
+                ip += '.';
+            }
+            ip.pop_back();
+            startmanagerip = ip;
 
             // 実験開始のフラグを立てる
             start_message.write_ready_M1(true);
@@ -338,3 +355,28 @@ inline void ACCM::receive_RWer(int sockfd) {
     }
 }
 
+inline void ACCM::send_to_startmanager() {
+    std::cout << "send to startmanager" << std::endl;
+    // ソケットの生成
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) { // エラー処理
+        perror("socket");
+        exit(1); // 異常終了
+    }
+
+    // アドレスの生成
+    struct sockaddr_in addr; // 接続先の情報用の構造体(ipv4)
+    memset(&addr, 0, sizeof(struct sockaddr_in)); // memsetで初期化
+    addr.sin_family = AF_INET; // アドレスファミリ(ipv4)
+    addr.sin_port = htons(10000); // ポート番号, htons()関数は16bitホストバイトオーダーをネットワークバイトオーダーに変換
+    addr.sin_addr.s_addr = inet_addr(startmanagerip.c_str()); // IPアドレス, inet_addr()関数はアドレスの翻訳
+
+    // データ送信
+    std::string message;
+    message += hostname;
+    message += " end!!";
+    sendto(sockfd, message.c_str(), message.size(), 0, (struct sockaddr *)&addr, sizeof(addr)); // 送信
+
+    // ソケットクローズ
+    close(sockfd);  
+}
