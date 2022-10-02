@@ -27,7 +27,7 @@ public :
     RandomWalker() {}
 
     // コンストラクタ 3 (デシリアライズ)
-    RandomWalker(std::string message);
+    RandomWalker(char* message, int& message_index);
 
     // RWer の ID を入手
     std::int32_t get_RWer_ID();
@@ -48,7 +48,7 @@ public :
     void update_RWer(std::int32_t next_node);
 
     // シリアライズ用の関数
-    std::string serialize();
+    void serialize(char* message, int& message_index);
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -89,102 +89,97 @@ inline void RandomWalker::update_RWer(std::int32_t next_node) {
     path.push_back(next_node);
 }
 
-inline std::string RandomWalker::serialize() {
-    std::string message(217, '0');
-    int now_index = 0;
+inline void RandomWalker::serialize(char* message, int& message_index) {
     union { std::int32_t a; char b[4];} _4byte;
 
     // RWer_ID
     _4byte.a = RWer_ID;
     for (int i = 0; i < 4; i++) {
-        message[now_index + i] = _4byte.b[i];
+        message[message_index + i] = _4byte.b[i];
     }
-    now_index += 4;
+    message_index += 4;
 
     // source_node
     _4byte.a = source_node;
     for (int i = 0; i < 4; i++) {
-        message[now_index + i] = _4byte.b[i];
+        message[message_index + i] = _4byte.b[i];
     }
-    now_index += 4;
+    message_index += 4;
 
     // hostip
     std::stringstream sstream(hostip);
     std::string word;
     while (std::getline(sstream, word, '.')) {
-        message[now_index] = char(std::stoi(word));
-        now_index++;
+        message[message_index] = char(std::stoi(word));
+        message_index++;
     }
 
     // current_node
     _4byte.a = current_node;
     for (int i = 0; i < 4; i++) {
-        message[now_index + i] = _4byte.b[i];
+        message[message_index + i] = _4byte.b[i];
     }
-    now_index += 4;
+    message_index += 4;
 
     // path length
     int len = path.size();
-    message[now_index] = char(len);
-    now_index++;
+    message[message_index] = char(len);
+    message_index++;
 
     // path
     for (int i = 0; i < std::min(len, 50); i++) {
         _4byte.a = path[i];
         for (int j = 0; j < 4; j++) {
-            message[now_index + j] = _4byte.b[j];
+            message[message_index + j] = _4byte.b[j];
         }
-        now_index += 4;        
+        message_index += 4;        
     }
-
-    return message;
 }
 
-inline RandomWalker::RandomWalker(std::string message) {
-    int now_index = 0;
+inline RandomWalker::RandomWalker(char* message, int& message_index) {
     union { std::int32_t a; char b[4];} _4byte;
 
     // RWer_ID
     for (int i = 0; i < 4; i++) {
-        _4byte.b[i] = message[now_index + i];
+        _4byte.b[i] = message[message_index + i];
     }
-    now_index += 4;
+    message_index += 4;
     RWer_ID = _4byte.a;
 
     // source_node
     for (int i = 0; i < 4; i++) {
-        _4byte.b[i] = message[now_index + i];
+        _4byte.b[i] = message[message_index + i];
     }
-    now_index += 4;
+    message_index += 4;
     source_node = _4byte.a;
 
     // hostip
     std::string ip;
     for (int i = 0; i < 4; i++) {
-        ip += std::to_string(int(message[now_index + i]));
+        ip += std::to_string(int(message[message_index + i]));
         ip += '.';
     }
     ip.pop_back();
-    now_index += 4;
+    message_index += 4;
     hostip = ip;
 
     // current_node
     for (int i = 0; i < 4; i++) {
-        _4byte.b[i] = message[now_index + i];
+        _4byte.b[i] = message[message_index + i];
     }
-    now_index += 4;
+    message_index += 4;
     current_node = _4byte.a;
 
     // path length
-    int len = int(message[now_index]);
-    now_index++;
+    int len = int(message[message_index]);
+    message_index++;
     
     // path
     for (int i = 0; i < std::min(len, 50); i++) {
         for (int i = 0; i < 4; i++) {
-            _4byte.b[i] = message[now_index + i];
+            _4byte.b[i] = message[message_index + i];
         }
-        now_index += 4;
+        message_index += 4;
         path.push_back(_4byte.a);
     }
 }

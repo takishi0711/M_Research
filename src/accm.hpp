@@ -16,6 +16,7 @@
 #include <sstream>
 #include <random>
 #include <thread>
+#include <chrono>
 
 #include "graph.hpp"
 #include "random_walk.hpp"
@@ -24,7 +25,9 @@
 #include "random_walker_queue.hpp"
 #include "send_fin_queue.hpp"
 #include "send_queue.hpp"
-#include "message1.hpp"
+#include "start_flag.hpp"
+#include "measurement.hpp"
+#include "message.hpp"
 
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
@@ -42,7 +45,8 @@ private :
     RandomWalkerQueue RQ; // RQ 関連
     SendFinQueue send_fin_queue; // RWer の終了通知のためのキュー
     SendQueue send_queue; // 他サーバへ遷移する RWer を格納するキュー
-    Message1 start_message; // メッセージ 1 (開始の合図) に関する情報
+    StartFlag start_flag; // メッセージ 1 (開始の合図) に関する情報
+    Measurement measurement; // 計測関連の情報
 
     // 乱数関連
     std::mt19937 mt{std::random_device{}()}; // メルセンヌ・ツイスタを用いた乱数生成
@@ -75,7 +79,10 @@ public :
     void receive_RWer(int sockfd);
 
     // 全実行が終了した時に StartManager にメッセージを送る関数
-    void send_to_startmanager();
+    void send_to_startmanager(int RWer_ID);
+
+    // 連続実行用のリセット関数
+    void reset();
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -105,8 +112,14 @@ inline ACCM::ACCM(std::string dir_path) {
     close(fd);
     this->hostip = inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr); // char* から string へ
 
+    // // デバッグ
+    // std::cout << hostip << std::endl;
+
     // グラフファイル読み込み
     graph.init(dir_path, hostname, hostip);
+
+    auto st = graph.get_my_vertices();
+    std::cout << st.size() << std::endl;
 
     // 全てのスレッドを開始させる
     start();    
@@ -114,14 +127,25 @@ inline ACCM::ACCM(std::string dir_path) {
 
 
 inline void ACCM::start() {
+    // サーバソケット生成
+    int sockfd = server_socket();
+
     // スレッドを開始させる
+
     std::thread thread_generate_RWer(&ACCM::generate_RWer, this);
     std::thread thread_one_hop_RW(&ACCM::one_hop_RW, this);
     std::thread thread_send_RWer(&ACCM::send_RWer, this);
     std::thread thread_send_fin_RWer(&ACCM::send_fin_RWer, this);
-    std::thread thread_receive_RWer(&ACCM::receive_RWer, this);
+
+    // 受信スレッド
+    std::vector<std::thread> threads_receive_RWer;
+    int num_receive = 5;
+    for (int i = 0; i < num_receive; i++) {
+        threads_receive_RWer.emplace_back(std::thread(&ACCM::receive_RWer, this, sockfd));
+    }
 
     // プログラムを終了させないようにする
+    thread_generate_RWer.join();
     thread_one_hop_RW.join();
 }
 
@@ -130,24 +154,28 @@ inline void ACCM::generate_RWer() {
     std::cout << "RWer_Generator" << std::endl;
     while (1) {
         // 開始通知を受けるまでロック
-        start_message.lock_while_false();
+        start_flag.lock_while_false();
 
         std::int32_t RWer_ID = 0;
 
         int number_of_RW_execution = RW.get_number_of_RW_execution();
+
+        // 実行開始時間を記録
+        measurement.setStart();
 
         // 全てのノードから指定回数 の RW が終了するまで RWer を生成
         for (std::int32_t node_ID : graph.get_my_vertices()) { // 全てのノードから
             
             while (1) { // 指定回数 の RW が終了するまで RWer を生成
                 // 指定回数分終わってたら終了
-                if (RG.get_end_count_of_RWer(node_ID) == number_of_RW_execution) break;
+                if (RG.get_end_count_of_RWer(node_ID) >= number_of_RW_execution) break;
 
                 // RWer を生成
                 RandomWalker RWer(node_ID, RWer_ID, hostip);
 
                 // スロースタート (スリープ)
                 RG.slowstart(node_ID, RWer_ID);
+                // std::this_thread::sleep_for(std::chrono::nanoseconds(1));
 
                 // RG に RWer を登録
                 RG.register_RWer(node_ID, RWer_ID);
@@ -160,7 +188,10 @@ inline void ACCM::generate_RWer() {
 
         }
 
-        send_to_startmanager();
+        // 実行終了時間を記録
+        measurement.setEnd();
+
+        send_to_startmanager(RWer_ID);
     }
 }
 
@@ -184,7 +215,7 @@ inline void ACCM::one_hop_RW() {
                 RG.fin_RWer_proc(RWer.get_source_node(), RWer.get_RWer_ID());
 
             } else { // そうでないなら Send_fin_Queue に RWer を push
-
+                
                 send_fin_queue.Push(RWer);
 
             }
@@ -234,13 +265,11 @@ inline void ACCM::send_RWer() {
         addr.sin_addr.s_addr = inet_addr(graph.get_IP(RWer.get_current_node()).c_str()); // IPアドレス, inet_addr()関数はアドレスの翻訳
 
         // メッセージ作成
-        char message_ID = '2'; // メッセージ ID (send_RWer は 2)
-        std::string message;
-        message += message_ID;
-        message += RWer.serialize();  
+        char message[1400];
+        Message::createSendRWerMessage(message, RWer);
 
-       // データ送信
-       sendto(sockfd, message.c_str(), message.size(), 0, (struct sockaddr *)&addr, sizeof(addr)); 
+        // データ送信
+        sendto(sockfd, message, sizeof(message), 0, (struct sockaddr *)&addr, sizeof(addr)); 
     }
 }
 
@@ -263,16 +292,14 @@ inline void ACCM::send_fin_RWer() {
         memset(&addr, 0, sizeof(struct sockaddr_in)); // memsetで初期化
         addr.sin_family = AF_INET; // アドレスファミリ(ipv4)
         addr.sin_port = htons(10000); // ポート番号, htons()関数は16bitホストバイトオーダーをネットワークバイトオーダーに変換
-        addr.sin_addr.s_addr = inet_addr(graph.get_IP(RWer.get_current_node()).c_str()); // IPアドレス, inet_addr()関数はアドレスの翻訳
+        addr.sin_addr.s_addr = inet_addr(RWer.get_hostip().c_str()); // IPアドレス, inet_addr()関数はアドレスの翻訳
 
         // メッセージ作成
-        char message_ID = '3'; // メッセージ ID (send_fin_RWer は 3)
-        std::string message;
-        message += message_ID;
-        message += RWer.serialize();  
+        char message[1400];
+        Message::createSendFinRWerMessage(message, RWer);
 
         // データ送信
-        sendto(sockfd, message.c_str(), message.size(), 0, (struct sockaddr *)&addr, sizeof(addr)); 
+        sendto(sockfd, message, sizeof(message), 0, (struct sockaddr *)&addr, sizeof(addr)); 
     }
 }
 
@@ -305,35 +332,50 @@ inline void ACCM::receive_RWer(int sockfd) {
 
     while (1) {
         // messageを受信
-        char buf[1400]; // 受信バッファ
-        memset(buf, 0, sizeof(buf)); // 受信バッファ初期化
-        recv(sockfd, buf, sizeof(buf), 0); // 受信
-        std::string message = buf; // メッセージをchar*型からstring型に変換
-        if (message.size() < 1) continue;
+        char message[1400]; // 受信バッファ
+        memset(message, 0, sizeof(message)); // 受信バッファ初期化
+        recv(sockfd, message, sizeof(message), 0); // 受信
 
         // message -> メッセージ ID + メッセージ本体
         char message_ID = message[0];
 
         // メッセージ ID に則した処理
         if (message_ID == '1') { // ユーザーからの実験開始の合図
+            // メッセージをchar*型からstring型に変換
+            std::string message_str = message; 
+            
+            message_str = message_str.substr(1);
+
+            std::vector<std::string> words; // IP アドレス, RW 実行回数
+            std::stringstream sstream(message_str);
+            std::string word;
+            while (std::getline(sstream, word, ',')) { // カンマ区切りでwordを取り出す
+                words.push_back(word);
+            }
 
             // StartManager の IP アドレス
             std::string ip;
             for (int i = 0; i < 4; i++) {
-                ip += std::to_string(int(message[1 + i]));
+                ip += std::to_string(int(words[0][i]));
                 ip += '.';
             }
             ip.pop_back();
             startmanagerip = ip;
 
+            // RW 実行回数を格納
+            int RW_num = std::stoi(words[1]);
+            RW.set_number_of_RW_execution(RW_num);
+
             // 実験開始のフラグを立てる
-            start_message.write_ready_M1(true);
+            start_flag.write_ready_M1(true);
 
         } else if (message_ID == '2') { // 他のサーバから遷移してきた RWer 
             
             // RWer へデシリアライズ
-            message = message.substr(1);
-            RandomWalker RWer(message);
+            RandomWalker RWer = Message::readMessage(message);
+
+            // // デバッグ
+            // std::cout << RWer.get_hostip() << std::endl;
 
             // RWer_Queue に Push
             RQ.Push(RWer, RG, hostip);
@@ -341,11 +383,15 @@ inline void ACCM::receive_RWer(int sockfd) {
         } else if (message_ID == '3') { // 他のサーバで終了した RWer
 
             // RWer へデシリアライズ
-            message = message.substr(1);
-            RandomWalker RWer(message);
+            RandomWalker RWer = Message::readMessage(message);
 
             // 終了した RWer の処理
             RG.fin_RWer_proc(RWer.get_source_node(), RWer.get_RWer_ID());
+
+        } else if (message_ID == '4') { // 連続実行用
+
+            std::cout << "Reset" << std::endl;
+            reset();
 
         } else { // その他はありえない
             perror("wrong id");
@@ -355,7 +401,7 @@ inline void ACCM::receive_RWer(int sockfd) {
     }
 }
 
-inline void ACCM::send_to_startmanager() {
+inline void ACCM::send_to_startmanager(int RWer_ID) {
     std::cout << "send to startmanager" << std::endl;
     // ソケットの生成
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -374,9 +420,26 @@ inline void ACCM::send_to_startmanager() {
     // データ送信
     std::string message;
     message += hostname;
-    message += " end!!";
+    message += ',';
+    message += std::to_string(measurement.getExecutionTime());
+    message += ',';
+    message += std::to_string(RWer_ID - graph.get_my_vertices().size()*RW.get_number_of_RW_execution());
     sendto(sockfd, message.c_str(), message.size(), 0, (struct sockaddr *)&addr, sizeof(addr)); // 送信
+
+    std::cout << "RWer ID : " << RWer_ID << std::endl;
 
     // ソケットクローズ
     close(sockfd);  
+}
+
+inline void ACCM::reset() {
+    // デバッグ
+    int endsum = 0;
+    for (std::int32_t node_ID : graph.get_my_vertices()) {
+        endsum += RG.get_end_count_of_RWer(node_ID);
+    }
+    std::cout << "endsum : " << endsum << std::endl;
+
+    RQ.reset();
+    RG.reset();
 }

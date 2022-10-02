@@ -7,10 +7,10 @@
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
-struct Message1 {
+struct StartFlag {
 
 private :
-    bool ready_M1; // M1 用のフラグ (実験開始の合図)
+    bool ready_M1 = false; // M1 用のフラグ (実験開始の合図)
     std::mutex mtx_M1; // M1 用の mutex
     std::condition_variable cv_M1; // M1 用の condition variable
 
@@ -32,7 +32,7 @@ public :
 //////////////////////////////////////////////////////////////////////////
 
 
-inline void Message1::write_ready_M1(bool flag) {
+inline void StartFlag::write_ready_M1(bool flag) {
     {
         std::unique_lock<std::mutex> uniq_lk(mtx_M1);
         ready_M1 = flag;
@@ -41,7 +41,7 @@ inline void Message1::write_ready_M1(bool flag) {
 }
 
 
-inline bool Message1::read_ready_M1() {
+inline bool StartFlag::read_ready_M1() {
     {
         std::unique_lock<std::mutex> uniq_lk(mtx_M1);
         return ready_M1;
@@ -49,7 +49,7 @@ inline bool Message1::read_ready_M1() {
 }
 
 
-inline void Message1::lock_while_false() {
+inline void StartFlag::lock_while_false() {
     {
         std::unique_lock<std::mutex> uniq_lk(mtx_M1);
         cv_M1.wait(uniq_lk, [&]{ return ready_M1;});

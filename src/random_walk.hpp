@@ -12,6 +12,9 @@ private :
 
 public :
 
+    // RW の実行回数を設定
+    void set_number_of_RW_execution(const int RW_num);
+
     // RW の実行回数を入手
     int get_number_of_RW_execution();
 
@@ -23,6 +26,9 @@ public :
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
+inline void RandomWalk::set_number_of_RW_execution(const int RW_num) {
+    number_of_RW_execution = RW_num;
+}
 
 inline int RandomWalk::get_number_of_RW_execution() {
     return number_of_RW_execution;

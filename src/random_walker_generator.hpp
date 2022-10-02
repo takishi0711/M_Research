@@ -57,6 +57,9 @@ public :
     // 終了した RWer の数 (開始頂点毎) を入手
     int get_end_count_of_RWer(std::int32_t node_ID);
 
+    // 連続実行用のリセット関数
+    void reset();
+
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -205,4 +208,19 @@ inline int RandomWalkerGenerator::get_end_count_of_RWer(std::int32_t node_ID) {
         std::unique_lock<std::mutex> uniq_lk(mtx_end_count_of_RWer_per_node);
         return end_count_of_RWer_per_node[node_ID];
     }
+}
+
+inline void RandomWalkerGenerator::reset() {
+    end_count_of_RWer_per_node.clear();
+    congestion_flag_per_node.clear();
+    buffer_of_RWer_ID_per_node.clear();
+    start_time_per_RWer_ID.clear();
+    T_per_node.clear();
+    ave_RTT_per_node.clear();
+    Deviation_per_node.clear();
+    end_flag_per_RWer.clear();
+    count_x_per_node.clear();
+
+    // デバッグ
+    std::cout << "RG ok" << std::endl;
 }

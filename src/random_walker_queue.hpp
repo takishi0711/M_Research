@@ -45,6 +45,9 @@ public :
 
     // RWer_Queue から RWer を取り出す
     RandomWalker Pop(); 
+
+    // 連続実行用のリセット関数
+    void reset();
     
 };
 
@@ -118,4 +121,14 @@ inline RandomWalker RandomWalkerQueue::Pop() {
         return RWer;
     }
 
+}
+
+inline void RandomWalkerQueue::reset() {
+    std::cout << "drop count : " << drop_count << std::endl;
+    drop_count = 0;
+    avg = 0;
+    count = -1;
+
+    // デバッグ
+    std::cout << "RQ ok" << std::endl;
 }
