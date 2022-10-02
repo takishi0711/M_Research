@@ -21,14 +21,7 @@
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
-struct StartManager {
-
-private : 
-
-    std::string myname; // StartManager のホスト名
-    std::string myip; // StartManager の IP アドレス
-    int split_num = 5;
-    std::vector<std::string> worker_ip = {"10.58.60.3", "10.58.60.5", "10.58.60.6", "10.58.60.7", "10.58.60.8"}; // 実験で使う通信先 IP アドレス
+class StartManager {
 
 public :
 
@@ -43,6 +36,13 @@ public :
 
     // IPv4 サーバソケットを作成
     int server_socket();
+
+private : 
+
+    std::string myname; // StartManager のホスト名
+    std::string myip; // StartManager の IP アドレス
+    int split_num = 5;
+    std::vector<std::string> worker_ip = {"10.58.60.3", "10.58.60.5", "10.58.60.6", "10.58.60.7", "10.58.60.8"}; // 実験で使う通信先 IP アドレス
 
 };
 

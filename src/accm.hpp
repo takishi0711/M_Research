@@ -33,24 +33,7 @@
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
-struct ACCM {
-
-private :
-    std::string hostname; // 自サーバ のホスト名
-    std::string hostip; // 自サーバ の IP アドレス
-    std::string startmanagerip; // StartManager の IP アドレス
-    Graph graph; // グラフデータ
-    RandomWalk RW; // Random Walk 実行関連
-    RandomWalkerGenerator RG; // RG 関連
-    RandomWalkerQueue RQ; // RQ 関連
-    SendFinQueue send_fin_queue; // RWer の終了通知のためのキュー
-    SendQueue send_queue; // 他サーバへ遷移する RWer を格納するキュー
-    StartFlag start_flag; // メッセージ 1 (開始の合図) に関する情報
-    Measurement measurement; // 計測関連の情報
-
-    // 乱数関連
-    std::mt19937 mt{std::random_device{}()}; // メルセンヌ・ツイスタを用いた乱数生成
-    std::uniform_real_distribution<double>  rand_double{0, 1.0}; // 0~1のランダムな値
+class ACCM {
 
 public : 
 
@@ -83,6 +66,24 @@ public :
 
     // 連続実行用のリセット関数
     void reset();
+
+private :
+    std::string hostname; // 自サーバ のホスト名
+    std::string hostip; // 自サーバ の IP アドレス
+    std::string startmanagerip; // StartManager の IP アドレス
+    Graph graph; // グラフデータ
+    RandomWalk RW; // Random Walk 実行関連
+    RandomWalkerGenerator RG; // RG 関連
+    RandomWalkerQueue RQ; // RQ 関連
+    SendFinQueue send_fin_queue; // RWer の終了通知のためのキュー
+    SendQueue send_queue; // 他サーバへ遷移する RWer を格納するキュー
+    StartFlag start_flag; // メッセージ 1 (開始の合図) に関する情報
+    Measurement measurement; // 計測関連の情報
+
+    // 乱数関連
+    std::mt19937 mt{std::random_device{}()}; // メルセンヌ・ツイスタを用いた乱数生成
+    std::uniform_real_distribution<double>  rand_double{0, 1.0}; // 0~1のランダムな値
+
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -156,7 +157,7 @@ inline void ACCM::generate_RWer() {
         // 開始通知を受けるまでロック
         start_flag.lock_while_false();
 
-        std::int32_t RWer_ID = 0;
+        int32_t RWer_ID = 0;
 
         int number_of_RW_execution = RW.get_number_of_RW_execution();
 
@@ -164,7 +165,7 @@ inline void ACCM::generate_RWer() {
         measurement.setStart();
 
         // 全てのノードから指定回数 の RW が終了するまで RWer を生成
-        for (std::int32_t node_ID : graph.get_my_vertices()) { // 全てのノードから
+        for (int32_t node_ID : graph.get_my_vertices()) { // 全てのノードから
             
             while (1) { // 指定回数 の RW が終了するまで RWer を生成
                 // 指定回数分終わってたら終了
@@ -202,7 +203,7 @@ inline void ACCM::one_hop_RW() {
         RandomWalker RWer = RQ.Pop();
 
         // 現在ノードの隣接ノード集合を入手
-        std::vector<std::int32_t> adjacency_vertices = graph.get_adjacency_vertices(RWer.get_current_node());
+        std::vector<int32_t> adjacency_vertices = graph.get_adjacency_vertices(RWer.get_current_node());
 
         // 次数
         int degree = adjacency_vertices.size();
@@ -224,7 +225,7 @@ inline void ACCM::one_hop_RW() {
 
             // ランダムな隣接ノードへ遷移
             std::uniform_int_distribution<int> rand_int(0, degree-1);
-            std::int32_t next_node = adjacency_vertices[rand_int(mt)];
+            int32_t next_node = adjacency_vertices[rand_int(mt)];
             RWer.update_RWer(next_node);
 
             // 遷移先ノードの持ち主が自サーバか他サーバかで分類
@@ -435,7 +436,7 @@ inline void ACCM::send_to_startmanager(int RWer_ID) {
 inline void ACCM::reset() {
     // デバッグ
     int endsum = 0;
-    for (std::int32_t node_ID : graph.get_my_vertices()) {
+    for (int32_t node_ID : graph.get_my_vertices()) {
         endsum += RG.get_end_count_of_RWer(node_ID);
     }
     std::cout << "endsum : " << endsum << std::endl;

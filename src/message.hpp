@@ -9,10 +9,10 @@
 namespace Message 
 {   
     // 生存している RWer 送信用のメッセージ作成
-    void createSendRWerMessage(char* message, RandomWalker RWer);
+    void createSendRWerMessage(char* message, RandomWalker& RWer);
 
     // 終了した RWer 送信用のメッセージ作成
-    void createSendFinRWerMessage(char* message, RandomWalker RWer);
+    void createSendFinRWerMessage(char* message, RandomWalker& RWer);
 
     // メッセージから RWer の復元
     RandomWalker readMessage(char* message);
@@ -22,7 +22,7 @@ namespace Message
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
-inline void Message::createSendRWerMessage(char* message, RandomWalker RWer) {
+inline void Message::createSendRWerMessage(char* message, RandomWalker& RWer) {
     // メッセージ ID は 2
     message[0] = '2';
 
@@ -31,7 +31,7 @@ inline void Message::createSendRWerMessage(char* message, RandomWalker RWer) {
     RWer.serialize(message, message_index);
 }
 
-inline void Message::createSendFinRWerMessage(char* message, RandomWalker RWer) {
+inline void Message::createSendFinRWerMessage(char* message, RandomWalker& RWer) {
     // メッセージ ID は 3
     message[0] = '3';
 

@@ -9,13 +9,7 @@
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
-struct Graph {
-
-private :
-    std::unordered_set<std::int32_t> my_vertices; // 自サーバが持ち主となるノード集合
-    std::unordered_map<std::int32_t, int> degree; // 自サーバが持ち主となるノードの次数
-    std::unordered_map<std::int32_t, std::string> vertices_IP; // 自サーバが保持しているノードの持ち主の IP アドレス {ノード ID : IP アドレス (ノードの持ち主)}
-    std::unordered_map<std::int32_t, std::vector<std::int32_t>> adjacency_list; // 自サーバの隣接リスト {ノード ID : 隣接リスト}
+class Graph {
 
 public : 
 
@@ -26,13 +20,19 @@ public :
     void add_edge(std::vector<std::string>& words, std::string hostip);
 
     // 自サーバが持ち主となるノード集合を入手
-    std::unordered_set<std::int32_t> get_my_vertices();
+    std::unordered_set<int32_t> get_my_vertices();
 
     // node_ID に対する隣接ノード集合を入手
-    std::vector<std::int32_t> get_adjacency_vertices(std::int32_t node_ID);
+    std::vector<int32_t> get_adjacency_vertices(int32_t node_ID);
 
     // ノードの持ち主の IP アドレスを入手
-    std::string get_IP(std::int32_t node_ID);
+    std::string get_IP(int32_t node_ID);
+
+private :
+    std::unordered_set<int32_t> my_vertices; // 自サーバが持ち主となるノード集合
+    std::unordered_map<int32_t, int> degree; // 自サーバが持ち主となるノードの次数
+    std::unordered_map<int32_t, std::string> vertices_IP; // 自サーバが保持しているノードの持ち主の IP アドレス {ノード ID : IP アドレス (ノードの持ち主)}
+    std::unordered_map<int32_t, std::vector<int32_t>> adjacency_list; // 自サーバの隣接リスト {ノード ID : 隣接リスト}
 
 };
 
@@ -65,14 +65,14 @@ inline void Graph::add_edge(std::vector<std::string>& words, std::string hostip)
     degree[std::stoi(words[0])] = adjacency_list[std::stoi(words[0])].size(); // 次数を更新
 }
 
-inline std::unordered_set<std::int32_t> Graph::get_my_vertices() {
+inline std::unordered_set<int32_t> Graph::get_my_vertices() {
     return my_vertices;
 }
 
-inline std::vector<std::int32_t> Graph::get_adjacency_vertices(std::int32_t node_ID) {
+inline std::vector<int32_t> Graph::get_adjacency_vertices(int32_t node_ID) {
     return adjacency_list[node_ID];
 }
 
-inline std::string Graph::get_IP(std::int32_t node_ID) {
+inline std::string Graph::get_IP(int32_t node_ID) {
     return vertices_IP[node_ID];
 }

@@ -4,11 +4,7 @@
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
-struct RandomWalk {
-
-private :
-    int number_of_RW_execution = 10000; // RW の実行回数
-    double alpha = 0.2; // RW の終了確率
+class RandomWalk {
 
 public :
 
@@ -20,6 +16,11 @@ public :
 
     // RW の終了確率を入手
     double get_alpha();
+
+private :
+    int number_of_RW_execution = 10000; // RW の実行回数
+    double alpha = 0.2; // RW の終了確率
+
 };
 
 //////////////////////////////////////////////////////////////////////////

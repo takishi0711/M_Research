@@ -7,12 +7,7 @@
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
-struct StartFlag {
-
-private :
-    bool ready_M1 = false; // M1 用のフラグ (実験開始の合図)
-    std::mutex mtx_M1; // M1 用の mutex
-    std::condition_variable cv_M1; // M1 用の condition variable
+class StartFlag {
 
 public :
 
@@ -24,6 +19,11 @@ public :
 
     // ready_M1 が true になるまで (開始の合図が来るまで) ロックする関数
     void lock_while_false();
+
+private :
+    bool ready_M1 = false; // M1 用のフラグ (実験開始の合図)
+    std::mutex mtx_M1; // M1 用の mutex
+    std::condition_variable cv_M1; // M1 用の condition variable
 
 };
 

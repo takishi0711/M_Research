@@ -8,20 +8,20 @@
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
-struct SendFinQueue {
+class SendFinQueue {
+
+public :
+
+    // send_fin_queue に RWer を Push 
+    void Push(RandomWalker& RWer);
+
+    // Send_Fin_Queue から RWer を取り出す
+    RandomWalker Pop(); 
 
 private :
     std::queue<RandomWalker> Send_Fin_Queue;
     std::mutex mtx_Send_Fin_Queue;
     std::condition_variable cv_Send_Fin_Queue; 
-
-public :
-
-    // send_fin_queue に RWer を Push 
-    void Push(RandomWalker RWer);
-
-    // Send_Fin_Queue から RWer を取り出す
-    RandomWalker Pop(); 
 
 };
 
@@ -29,7 +29,7 @@ public :
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
-inline void SendFinQueue::Push(RandomWalker RWer) {
+inline void SendFinQueue::Push(RandomWalker& RWer) {
     { // 排他制御
         std::unique_lock<std::mutex> uniq_lk(mtx_Send_Fin_Queue);
 
