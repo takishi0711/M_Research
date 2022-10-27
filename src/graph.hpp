@@ -19,6 +19,9 @@ public :
     // 辺の追加
     void add_edge(std::vector<std::string>& words, std::string hostip);
 
+    // 自サーバが持ち主となるノードの数を入手
+    int get_my_vertices_num();
+
     // 自サーバが持ち主となるノード集合を入手
     std::unordered_set<int32_t> get_my_vertices();
 
@@ -63,6 +66,10 @@ inline void Graph::add_edge(std::vector<std::string>& words, std::string hostip)
     vertices_IP[std::stoi(words[1])] = words[2]; // ノード 2 の IP アドレスを代入
     adjacency_list[std::stoi(words[0])].push_back(std::stoi(words[1])); // ノード １ の隣接リストにノード 2 を追加
     degree[std::stoi(words[0])] = adjacency_list[std::stoi(words[0])].size(); // 次数を更新
+}
+
+inline int Graph::get_my_vertices_num() {
+    return my_vertices.size();
 }
 
 inline std::unordered_set<int32_t> Graph::get_my_vertices() {

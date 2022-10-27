@@ -212,14 +212,23 @@ inline int RandomWalkerGenerator::get_end_count_of_RWer(int32_t node_ID) {
 
 inline void RandomWalkerGenerator::reset() {
     end_count_of_RWer_per_node.clear();
+    std::cout << 1 << std::endl;
     congestion_flag_per_node.clear();
+    std::cout << 2 << std::endl;
     buffer_of_RWer_ID_per_node.clear();
+    std::cout << 3 << std::endl;
     start_time_per_RWer_ID.clear();
+    std::cout << 4 << std::endl;
     T_per_node.clear();
+    std::cout << 5 << std::endl;
     ave_RTT_per_node.clear();
+    std::cout << 6 << std::endl;
     Deviation_per_node.clear();
+    std::cout << 7 << std::endl;
     end_flag_per_RWer.clear();
+    std::cout << 8 << std::endl;
     count_x_per_node.clear();
+    std::cout << 9 << std::endl;
 
     // デバッグ
     std::cout << "RG ok" << std::endl;

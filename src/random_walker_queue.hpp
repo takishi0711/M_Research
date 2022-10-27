@@ -26,6 +26,9 @@ public :
     // RWer_Queue から RWer を取り出す
     RandomWalker Pop(); 
 
+    // drop_count を入手
+    int getDropCount();
+
     // 連続実行用のリセット関数
     void reset();
 
@@ -39,7 +42,7 @@ private :
     // 1 : RED
     // 2 : Tail Drop
     // 3 : ドロップなし (ため続ける)
-    int queue_type = 1;
+    int queue_type = 3;
 
     // RED 関連
     double wq = 1;
@@ -160,6 +163,10 @@ inline RandomWalker RandomWalkerQueue::Pop() {
         return RWer;
     }
 
+}
+
+inline int RandomWalkerQueue::getDropCount() {
+    return drop_count;
 }
 
 inline void RandomWalkerQueue::reset() {

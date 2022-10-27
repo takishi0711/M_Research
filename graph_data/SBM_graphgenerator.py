@@ -8,17 +8,32 @@ name = ['abilene03', 'abilene05', 'abilene06', 'abilene07', 'abilene08']
 sizes = [100, 100, 100, 100, 100]
 
 # gm間でエッジが張られる確率
-probs = [[0.02, 0.02, 0.02, 0.02, 0.02], [0.02, 0.02, 0.02, 0.02, 0.02], [0.02, 0.02, 0.02, 0.02, 0.02], [0.02, 0.02, 0.02, 0.02, 0.02], [0.02, 0.02, 0.02, 0.02, 0.02]]
+# probs = [[0.02, 0.02, 0.02, 0.02, 0.02], [0.02, 0.02, 0.02, 0.02, 0.02], [0.02, 0.02, 0.02, 0.02, 0.02], [0.02, 0.02, 0.02, 0.02, 0.02], [0.02, 0.02, 0.02, 0.02, 0.02]]
+probs = [[0.01, 0.01, 0.01, 0.01, 0.1], 
+        [0.01, 0.01, 0.01, 0.01, 0.1], 
+        [0.01, 0.01, 0.01, 0.01, 0.1], 
+        [0.01, 0.01, 0.01, 0.01, 0.1], 
+        [0.1, 0.1, 0.1, 0.1, 0.5]]
 
 # SBMによるグラフ作成
 g = nx.stochastic_block_model(sizes, probs, seed=0)
 
-# ファイルに記述
+# ファイルに記述 (accm)
 for par in range(len(g.graph["partition"])):
 
-    f = open('./SBM_100_normal/{}.txt'. format(name[par]), 'w')
+    f = open('./SBM_100_hard/{}.txt'. format(name[par]), 'w')
     for node_id in list(g.graph["partition"][par]):
         for node_id_nex in list(g.adj[node_id]):
             f.write('{} {} {}\n'.format(node_id, node_id_nex, ip[g.nodes[node_id_nex]["block"]]))
     
     f.close()
+
+# ファイルに記述 (KnightKing)
+# f = open('./SBM_100_hard/KnightKing.txt', 'w')
+# for par in range(len(g.graph["partition"])):
+
+#     for node_id in list(g.graph["partition"][par]):
+#         for node_id_nex in list(g.adj[node_id]):
+#             f.write('{} {}\n'.format(node_id, node_id_nex))
+    
+# f.close()

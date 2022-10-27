@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
 
     for (int i = 0; i < cnt; i++) {
         start.send_start(ofs_time, ofs_rerun, RW_num);
-        std::this_thread::sleep_for(std::chrono::seconds(10));
+        std::this_thread::sleep_for(std::chrono::seconds(20));
         start.send_reset();
         std::this_thread::sleep_for(std::chrono::seconds(10));
     }
