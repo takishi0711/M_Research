@@ -32,7 +32,7 @@ public :
     void send_start(std::ofstream& ofs_time, std::ofstream& ofs_rerun, const int RW_num);
 
     // 連続実行のための reset 要求
-    void send_reset();
+    void send_reset(std::ofstream& ofs_time, std::ofstream& ofs_rerun);
 
     // IPv4 サーバソケットを作成 (UDP)
     int server_socket_UDP();
@@ -45,6 +45,7 @@ private :
     std::string myname; // StartManager のホスト名
     std::string myip; // StartManager の IP アドレス
     int split_num = 5;
+    int RW_execution_num = 0;
     std::vector<std::string> worker_ip = {"10.58.60.3", "10.58.60.5", "10.58.60.6", "10.58.60.7", "10.58.60.8"}; // 実験で使う通信先 IP アドレス
 
 };
@@ -83,6 +84,8 @@ inline void StartManager::send_start(std::ofstream& ofs_time, std::ofstream& ofs
         perror("socket");
         exit(1); // 異常終了
     }    
+
+    RW_execution_num = RW_num;
 
     std::chrono::system_clock::time_point start, end;
 
@@ -166,19 +169,19 @@ inline void StartManager::send_start(std::ofstream& ofs_time, std::ofstream& ofs
     // 計測終了
     end = std::chrono::system_clock::now(); 
 
-    double execution_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count(); // 秒変換
-    execution_time /= 1000;
+    // double execution_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count(); // 秒変換
+    // execution_time /= 1000;
 
-    printf("Execution time : %.5f [sec]\n", execution_time);
+    // printf("Execution time : %.5f [sec]\n", execution_time);
 
-    ofs_time << execution_time << std::endl; 
-    ofs_rerun << (double)sum_rerun / (split_num*RW_num*100) * 100 << std::endl; 
+    // ofs_time << execution_time << std::endl; 
+    // ofs_rerun << (double)sum_rerun / (split_num*RW_num*100) * 100 << std::endl; 
 
     // サーバソケットクローズ
     close(sockfd);  
 }
 
-inline void StartManager::send_reset() {
+inline void StartManager::send_reset(std::ofstream& ofs_time, std::ofstream& ofs_rerun) {
     // split_num 個のサーバに reset 要求
     for (int i = 0; i < split_num; i++) {
         // ソケットの生成
@@ -253,6 +256,9 @@ inline void StartManager::send_reset() {
     int drop_UDP = sum_RWer_ID - sum_drop_count - sum_end_count;
     std::cout << "drop_UDP : " << drop_UDP << std::endl;
     std::cout << "max_all_execution_time : " << max_all_execution_time << std::endl;
+
+    ofs_time << max_all_execution_time << std::endl; 
+    ofs_rerun << (double)drop_UDP / (split_num*RW_execution_num*100) * 100 << std::endl; 
 
     // サーバソケットクローズ
     close(sockfd); 

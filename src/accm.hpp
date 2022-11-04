@@ -177,7 +177,7 @@ inline void ACCM::start() {
 
     // 受信スレッド
     std::vector<std::thread> threads_receive_RWer;
-    int num_receive = 5;
+    int num_receive = 8;
     for (int i = 0; i < num_receive; i++) {
         threads_receive_RWer.emplace_back(std::thread(&ACCM::receive_RWer, this, sockfd));
     }
@@ -243,7 +243,7 @@ inline void ACCM::generate_RWer() {
 
                     RWer_ID++;
 
-                    // if (i%10 == 0) std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+                    // if (RWer_ID%10 == 0) std::this_thread::sleep_for(std::chrono::nanoseconds(1000));
                     // std::this_thread::sleep_for(std::chrono::nanoseconds(1));
 
                     // std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -268,50 +268,59 @@ inline void ACCM::one_hop_RW() {
         // RQ から RWer を入手
         RandomWalker RWer = RQ.Pop();
 
-        // 現在ノードの隣接ノード集合を入手
-        std::vector<int32_t> adjacency_vertices = graph.get_adjacency_vertices(RWer.get_current_node());
+        while (1) {
 
-        // 次数
-        int degree = adjacency_vertices.size();
+            // 現在ノードの隣接ノード集合を入手
+            std::vector<int32_t> adjacency_vertices = graph.get_adjacency_vertices(RWer.get_current_node());
 
-        // RW を一歩進める
-        if (rand_double(mt) < RW.get_alpha() || degree == 0) { // 確率 α もしくは次数 0 なら終了　
+            // 次数
+            int degree = adjacency_vertices.size();
 
-            if (RWer.get_hostip() == hostip) { // もし終了した RWer の起点サーバが今いるサーバである場合, 終了した RWer をこの場で処理
-                // std::cout << "6" << std::endl;
-                if (generator_type == 1) RG.fin_RWer_proc(RWer.get_source_node(), RWer.get_RWer_ID());
-                else if (generator_type == 2) {
-                    int32_t id = RWer.get_RWer_ID();
-                    end_flag_per_RWer_ID[id] = true;
-                    end_time_per_RWer_ID[id] = std::chrono::system_clock::now();
-                    // debug
-                    // std::cout << id << std::endl;
+            // RW を一歩進める
+            if (rand_double(mt) < RW.get_alpha() || degree == 0) { // 確率 α もしくは次数 0 なら終了　
+
+                if (RWer.get_hostip() == hostip) { // もし終了した RWer の起点サーバが今いるサーバである場合, 終了した RWer をこの場で処理
+                    // std::cout << "6" << std::endl;
+                    if (generator_type == 1) RG.fin_RWer_proc(RWer.get_source_node(), RWer.get_RWer_ID());
+                    else if (generator_type == 2) {
+                        int32_t id = RWer.get_RWer_ID();
+                        end_flag_per_RWer_ID[id] = true;
+                        end_time_per_RWer_ID[id] = std::chrono::system_clock::now();
+                        // debug
+                        // std::cout << id << std::endl;
+                    }
+
+                } else { // そうでないなら Send_fin_Queue に RWer を push
+                    
+                    send_fin_queue.Push(RWer);
+
                 }
 
-            } else { // そうでないなら Send_fin_Queue に RWer を push
-                
-                send_fin_queue.Push(RWer);
+                break;
 
-            }
+            } else { // 確率 1-α でランダムな隣接ノードへ遷移
 
-        } else { // 確率 1-α でランダムな隣接ノードへ遷移
+                // ランダムな隣接ノードへ遷移
+                std::uniform_int_distribution<int> rand_int(0, degree-1);
+                int32_t next_node = adjacency_vertices[rand_int(mt)];
+                RWer.update_RWer(next_node);
 
-            // ランダムな隣接ノードへ遷移
-            std::uniform_int_distribution<int> rand_int(0, degree-1);
-            int32_t next_node = adjacency_vertices[rand_int(mt)];
-            RWer.update_RWer(next_node);
+                // 遷移先ノードの持ち主が自サーバか他サーバかで分類
+                if (graph.get_IP(next_node) == hostip) { // 自サーバへの遷移
 
-            // 遷移先ノードの持ち主が自サーバか他サーバかで分類
-            if (graph.get_IP(next_node) == hostip) { // 自サーバへの遷移
+                    // // RWer_Queue に Push
+                    // RQ.Push(RWer, RG, hostip);
 
-                // RWer_Queue に Push
-                RQ.Push(RWer, RG, hostip);
- 
-            } else { // 他サーバへの遷移
+                    continue;
+    
+                } else { // 他サーバへの遷移
 
-                // Send_Queue に RWer を Push
-                send_queue.Push(RWer);
+                    // Send_Queue に RWer を Push
+                    send_queue.Push(RWer);
 
+                    break;
+
+                }
             }
         }
     }
@@ -488,6 +497,62 @@ inline void ACCM::receive_RWer(int sockfd) {
 
             // RWer_Queue に Push
             RQ.Push(RWer, RG, hostip);
+
+            // while (1) {
+
+            //     // 現在ノードの隣接ノード集合を入手
+            //     std::vector<int32_t> adjacency_vertices = graph.get_adjacency_vertices(RWer.get_current_node());
+
+            //     // 次数
+            //     int degree = adjacency_vertices.size();
+
+            //     // RW を一歩進める
+            //     if (rand_double(mt) < RW.get_alpha() || degree == 0) { // 確率 α もしくは次数 0 なら終了　
+
+            //         if (RWer.get_hostip() == hostip) { // もし終了した RWer の起点サーバが今いるサーバである場合, 終了した RWer をこの場で処理
+            //             // std::cout << "6" << std::endl;
+            //             if (generator_type == 1) RG.fin_RWer_proc(RWer.get_source_node(), RWer.get_RWer_ID());
+            //             else if (generator_type == 2) {
+            //                 int32_t id = RWer.get_RWer_ID();
+            //                 end_flag_per_RWer_ID[id] = true;
+            //                 end_time_per_RWer_ID[id] = std::chrono::system_clock::now();
+            //                 // debug
+            //                 // std::cout << id << std::endl;
+            //             }
+
+            //         } else { // そうでないなら Send_fin_Queue に RWer を push
+                        
+            //             send_fin_queue.Push(RWer);
+
+            //         }
+
+            //         break;
+
+            //     } else { // 確率 1-α でランダムな隣接ノードへ遷移
+
+            //         // ランダムな隣接ノードへ遷移
+            //         std::uniform_int_distribution<int> rand_int(0, degree-1);
+            //         int32_t next_node = adjacency_vertices[rand_int(mt)];
+            //         RWer.update_RWer(next_node);
+
+            //         // 遷移先ノードの持ち主が自サーバか他サーバかで分類
+            //         if (graph.get_IP(next_node) == hostip) { // 自サーバへの遷移
+
+            //             // // RWer_Queue に Push
+            //             // RQ.Push(RWer, RG, hostip);
+
+            //             continue;
+        
+            //         } else { // 他サーバへの遷移
+
+            //             // Send_Queue に RWer を Push
+            //             send_queue.Push(RWer);
+
+            //             break;
+
+            //         }
+            //     }
+            // }
 
         } else if (message_ID == '3') { // 他のサーバで終了した RWer
 
