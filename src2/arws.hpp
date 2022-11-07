@@ -12,6 +12,7 @@
 #include <net/if.h>
 #include <arpa/inet.h>
 #include <omp.h>
+#include <thread>
 
 #include "src2/graph.hpp"
 #include "src2/random_walk_config.hpp"
@@ -34,7 +35,7 @@ public :
     // コンストラクタ
     ARWS(const std::string& dir_path);
 
-    // thread を開始させる関数
+    // thread を開始させる関数 (todo)
     void start();
 
     // RWer 生成 & 処理をする関数
@@ -58,7 +59,7 @@ public :
     // 他サーバからメッセージを受信し, message_queue に push する関数 (ポート番号毎)
     void receiveMessage(const uint16_t port_num);
 
-    // 実験結果を start_manager に送信する関数
+    // 実験結果を start_manager に送信する関数 (todo)
     void sendToStartManager();
 
 private :
@@ -72,7 +73,7 @@ private :
     std::unordered_map<std::string, SendQueue> send_queue_; // 送信先毎の send キュー
     RandomWalkerManager RW_manager_; // RWer に関する情報
     StartFlag start_flag_; // 実験開始の合図に関する情報
-    Measurement measurement; // 時間計測用
+    Measurement measurement_; // 時間計測用
 
     // 乱数関連
     std::mt19937 mt{std::random_device{}()}; // メルセンヌ・ツイスタを用いた乱数生成
@@ -133,10 +134,12 @@ inline void ARWS::generateRWer() {
         uint32_t number_of_my_vertices = graph_.getMyVerticesNum();
         std::vector<uint32_t> my_vertices = graph_.getMyVertices();
 
+        RW_manager_.init(number_of_my_vertices * number_of_RW_execution);
+
         uint32_t num_threads = GENERATE_RWER;
         omp_set_num_threads(num_threads);
 
-        measurement.setStart();
+        measurement_.setStart();
 
         int j;
         #pragma omp parallel for private(j) 
@@ -160,9 +163,9 @@ inline void ARWS::generateRWer() {
             }
         }
 
-        measurement.setEnd();
+        measurement_.setEnd();
 
-        std::cout << measurement.getExecutionTime() << std::endl;
+        std::cout << measurement_.getExecutionTime() << std::endl;
 
     }
 }
@@ -376,10 +379,52 @@ inline void ARWS::receiveMessage(const uint16_t port_num) {
         memset(message, 0, sizeof(message)); // 受信バッファ初期化
         recv(sockfd, message, sizeof(message), 0); // 受信
 
+        // メッセージキューに push
         message_queue_[port_num].push(message);
     }
 }
 
 inline void ARWS::sendToStartManager() {
+    // start manager に送信するのは, RW 終了数, 実行時間
+    int32_t end_count = RW_manager_.getEndcnt();
+    double execution_time = RW_manager_.getExecutionTime();
+    std::cout << "end_count : " << end_count << std::endl;
+    std::cout << "execution_time : " << execution_time << std::endl;
 
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+    {
+        // ソケットの生成
+        int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (sockfd < 0) { // エラー処理
+            perror("socket");
+            exit(1); // 異常終了
+        }
+
+        // アドレスの生成
+        struct sockaddr_in addr; // 接続先の情報用の構造体(ipv4)
+        memset(&addr, 0, sizeof(struct sockaddr_in)); // memsetで初期化
+        addr.sin_family = AF_INET; // アドレスファミリ(ipv4)
+        addr.sin_port = htons(9999); // ポート番号, htons()関数は16bitホストバイトオーダーをネットワークバイトオーダーに変換
+        addr.sin_addr.s_addr = inet_addr(startmanagerip_.c_str()); // IPアドレス, inet_addr()関数はアドレスの翻訳
+
+        // ソケット接続要求
+        connect(sockfd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)); // ソケット, アドレスポインタ, アドレスサイズ
+
+        // データ送信 (hostname, end_count, execution_time)
+        std::string message;
+        message += hostname_;
+        message += ',';
+        message += std::to_string(end_count);
+        message += ',';
+        message += std::to_string(execution_time);
+        send(sockfd, message.c_str(), message.size(), 0); // 送信
+
+        // ソケットクローズ
+        close(sockfd); 
+    }
+
+    // RW Manager　のリセット
+    RW_manager_.reset();
+
+    std::cout << "reset ok" << std::endl;
 }
