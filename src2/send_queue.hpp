@@ -5,7 +5,7 @@
 #include <mutex>
 #include <condition_variable>
 
-#include "src2/random_walker.hpp"
+#include "random_walker.hpp"
 
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
@@ -20,6 +20,9 @@ public :
 
     // send_queue から RWer を取り出す
     RandomWalker pop();
+
+    // send_queue_ のサイズを入手
+    int32_t getSize();
 
 private :
     std::queue<RandomWalker> send_queue_;
@@ -38,7 +41,7 @@ inline void SendQueue::push(const RandomWalker& RWer) {
 
         bool queue_empty = send_queue_.empty();
 
-        send_queue_.push(RWer);
+        send_queue_.emplace(RWer);
 
         if (queue_empty) { // 空キューでなくなった通知
             cv_send_queue_.notify_all();
@@ -60,4 +63,12 @@ inline RandomWalker SendQueue::pop() {
         return RWer;
     }
 
+}
+
+inline int32_t SendQueue::getSize() {
+    { // 排他制御
+        std::unique_lock<std::mutex> uniq_lk(mtx_send_queue_);
+
+        return send_queue_.size();
+    }
 }

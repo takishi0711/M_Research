@@ -33,7 +33,13 @@ int main(int argc, char *argv[]) {
 
     for (int i = 0; i < cnt; i++) {
         start.sendStart(ofs_time, ofs_rerun, RW_num);
-        std::this_thread::sleep_for(std::chrono::seconds(30));
+
+        if (RW_num == 100000) {
+            std::this_thread::sleep_for(std::chrono::seconds(200));
+        } else {
+            std::this_thread::sleep_for(std::chrono::seconds(140));
+        }
+        
         start.sendEnd(ofs_time, ofs_rerun);
         std::this_thread::sleep_for(std::chrono::seconds(10));
     }
