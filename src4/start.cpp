@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
         if (RW_num == 100000) {
             std::this_thread::sleep_for(std::chrono::seconds(200));
         } else {
-            std::this_thread::sleep_for(std::chrono::seconds(140));
+            std::this_thread::sleep_for(std::chrono::seconds(30));
         }
         
         start.sendEnd(ofs_time, ofs_rerun);
