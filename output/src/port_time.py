@@ -38,8 +38,10 @@ ax1.plot(x, y1)
 
 # ax1.legend()
 
-ax1.set_xlabel('port')
-ax1.set_ylabel('execution_time (sec)')
+ax1.tick_params(labelsize=14)
+
+ax1.set_xlabel('port', fontsize=14)
+ax1.set_ylabel('execution_time (sec)', fontsize=14)
 
 outname = '../picture/port_time.pdf'
 
