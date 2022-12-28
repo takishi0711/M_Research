@@ -178,15 +178,14 @@ inline void ARWS::generateRWer() {
 
             for (int j = 0; j < number_of_RW_execution; j++) {
                 // RWer を生成
-                RandomWalker* RWer = new RandomWalker(node_id, RWer_id, hostip_);
+                RandomWalker RWer(node_id, RWer_id, hostip_);
 
                 // 生成時刻を記録
                 RW_manager_.setStartTime(RWer_id);
 
                 // RW を実行 
-                executeRandomWalk(*RWer);
+                executeRandomWalk(RWer);
 
-                delete RWer;
             }
         }
     }
@@ -204,10 +203,9 @@ inline void ARWS::executeRandomWalk(RandomWalker& RWer) {
         if (rand_double(mt) < RW_config_.getAlpha() || degree == 0) { // 確率 α もしくは次数 0 なら終了
 
             RWer.endRWer();
-            std::unique_ptr<uint32_t> RWer_hostip(new uint32_t);
-            *RWer_hostip = RWer.getHostip();
+            uint32_t RWer_hostip = RWer.getHostip();
 
-            if (*RWer_hostip == hostip_) { // もし終了した RWer の起点サーバが今いるサーバである場合, 終了した RWer をこの場で処理
+            if (RWer_hostip == hostip_) { // もし終了した RWer の起点サーバが今いるサーバである場合, 終了した RWer をこの場で処理
       
                 RW_manager_.setEndTime(RWer.getRWerId());
       
@@ -215,7 +213,7 @@ inline void ARWS::executeRandomWalk(RandomWalker& RWer) {
 
                 std::unique_ptr<char[]> message(new char[MESSAGE_LENGTH]);
                 message[0] = '2';
-                memcpy(message.get() + sizeof(char), RWer_hostip.get() , sizeof(uint32_t));
+                memcpy(message.get() + sizeof(char), &RWer_hostip, sizeof(uint32_t));
                 memcpy(message.get() + sizeof(char) + sizeof(uint32_t), &RWer, sizeof(RandomWalker));
                 std::uniform_int_distribution<int> rand_port(10000, 10000+SEND_RECV_PORT-1);
                 send_queue_[rand_port(mt)].push(std::move(message));
@@ -230,11 +228,10 @@ inline void ARWS::executeRandomWalk(RandomWalker& RWer) {
             std::uniform_int_distribution<int> rand_int(0, degree-1);
             uint32_t next_node = adjacency_vertices[rand_int(mt)];
             RWer.updateRWer(next_node);
-            std::unique_ptr<uint32_t> next_node_ip(new uint32_t);
-            *next_node_ip = graph_.getIP(next_node);
+            uint32_t next_node_ip = graph_.getIP(next_node);
 
             // 遷移先ノードの持ち主が自サーバか他サーバかで分類
-            if (*next_node_ip == hostip_) { // 自サーバへの遷移
+            if (next_node_ip == hostip_) { // 自サーバへの遷移
 
                 continue;
 
@@ -242,7 +239,7 @@ inline void ARWS::executeRandomWalk(RandomWalker& RWer) {
 
                 std::unique_ptr<char[]> message(new char[MESSAGE_LENGTH]);
                 message[0] = '2';
-                memcpy(message.get() + sizeof(char), next_node_ip.get() , sizeof(uint32_t));
+                memcpy(message.get() + sizeof(char), &next_node_ip, sizeof(uint32_t));
                 memcpy(message.get() + sizeof(char) + sizeof(uint32_t), &RWer, sizeof(RandomWalker));
                 std::uniform_int_distribution<int> rand_port(10000, 10000+SEND_RECV_PORT-1);
                 send_queue_[rand_port(mt)].push(std::move(message));
