@@ -85,7 +85,7 @@ private :
     std::uniform_real_distribution<double>  rand_double{0, 1.0}; // 0~1のランダムな値
 
     // パラメタ (スレッド数)
-    const uint32_t SEND_RECV_PORT = 12;
+    const uint32_t SEND_RECV_PORT = 5;
     const uint32_t RECV_PER_PORT = 1;
     const uint32_t PROC_MESSAGE_PER_PORT = 1;
     const uint32_t SEND_PER_PORT = 1;
@@ -179,7 +179,7 @@ inline void ARWS::generateRWer() {
         RW_manager_.init(number_of_my_vertices * number_of_RW_execution);
 
         uint32_t num_threads = GENERATE_RWER;
-        omp_set_num_threads(num_threads);
+        // omp_set_num_threads(num_threads);
 
         measurement_.setStart();
 

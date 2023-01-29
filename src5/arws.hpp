@@ -436,14 +436,12 @@ inline void ARWS::sendToStartManager() {
         // ソケット接続要求
         connect(sockfd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)); // ソケット, アドレスポインタ, アドレスサイズ
 
-        // データ送信 (hostname, end_count, execution_time)
-        std::string message;
-        message += hostname_;
-        message += ',';
-        message += std::to_string(end_count);
-        message += ',';
-        message += std::to_string(execution_time);
-        send(sockfd, message.c_str(), message.size(), 0); // 送信
+        // データ送信 (hostip: 4B, end_count: 4B, all_execution_time: 8B)
+        char message[1024];
+        memcpy(message, &hostip_, sizeof(uint32_t));
+        memcpy(message + sizeof(uint32_t), &end_count, sizeof(uint32_t));
+        memcpy(message + sizeof(uint32_t) + sizeof(uint32_t), &execution_time, sizeof(double));
+        send(sockfd, message, sizeof(message), 0); // 送信
 
         // ソケットクローズ
         close(sockfd); 
