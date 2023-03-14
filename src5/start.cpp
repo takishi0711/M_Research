@@ -31,14 +31,21 @@ int main(int argc, char *argv[]) {
     std::cout << "RW実行回数？" << std::endl;
     std::cin >> RW_num;
 
+    // 待機時間
+    int32_t wait_time = 0;
+    std::cout << "待機時間？" << std::endl;
+    std::cin >> wait_time;
+
     for (int i = 0; i < cnt; i++) {
         start.sendStart(ofs_time, ofs_rerun, RW_num);
 
-        if (RW_num == 100000) {
-            std::this_thread::sleep_for(std::chrono::seconds(200));
-        } else {
-            std::this_thread::sleep_for(std::chrono::seconds(30));
-        }
+        // if (RW_num == 100000) {
+        //     std::this_thread::sleep_for(std::chrono::seconds(200));
+        // } else {
+        //     std::this_thread::sleep_for(std::chrono::seconds(30));
+        // }
+
+        std::this_thread::sleep_for(std::chrono::seconds(wait_time));
         
         start.sendEnd(ofs_time, ofs_rerun);
         std::this_thread::sleep_for(std::chrono::seconds(10));

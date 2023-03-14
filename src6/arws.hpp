@@ -80,7 +80,7 @@ private :
     const uint32_t PROC_MESSAGE_PER_PORT = 1;
 
     // パラメタ (メッセージ長)
-    const size_t MESSAGE_LENGTH = 250;
+    const size_t MESSAGE_MAX_LENGTH = 1450;
 
     // 乱数関連
     std::mt19937 mt{std::random_device{}()}; // メルセンヌ・ツイスタを用いた乱数生成
@@ -214,7 +214,7 @@ inline void ARWS::executeRandomWalk(RandomWalker& RWer) {
       
             } else { // そうでないならメッセージを生成し, send_queue に push
 
-                std::unique_ptr<char[]> message(new char[MESSAGE_LENGTH]);
+                std::unique_ptr<char[]> message(new char[MESSAGE_MAX_LENGTH]);
                 message[0] = '2';
                 memcpy(message.get() + sizeof(char), &RWer_hostip, sizeof(uint32_t));
                 memcpy(message.get() + sizeof(char) + sizeof(uint32_t), &RWer, sizeof(RandomWalker));
@@ -240,7 +240,7 @@ inline void ARWS::executeRandomWalk(RandomWalker& RWer) {
 
             } else { // 他サーバへの遷移 (メッセージを生成し, send_queue に push)
 
-                std::unique_ptr<char[]> message(new char[MESSAGE_LENGTH]);
+                std::unique_ptr<char[]> message(new char[MESSAGE_MAX_LENGTH]);
                 message[0] = '2';
                 memcpy(message.get() + sizeof(char), &next_node_ip, sizeof(uint32_t));
                 memcpy(message.get() + sizeof(char) + sizeof(uint32_t), &RWer, sizeof(RandomWalker));
@@ -316,22 +316,57 @@ inline void ARWS::sendMessage(const uint16_t& port_num) {
     }  
 
     while (1) {
-        // send_queue からメッセージを入手 
-        // RWer のメッセージ (id: 1B, 送信先 IP アドレス: 4B, RWer: 216B)
-        std::unique_ptr<char[]> message = send_queue_[port_num].pop();
+        // message_buffer: 送信先毎のRWerを詰めるバッファ
+        std::unordered_map<uint32_t, MessageQueue> message_buffer;
 
-        // 送信先 IP アドレス
-        uint32_t* ip = (uint32_t*)(message.get() + sizeof(char));
+        send_queue_[port_num].pop(message_buffer);
 
-        // アドレスの生成
-        struct sockaddr_in addr; // 接続先の情報用の構造体(ipv4)
-        memset(&addr, 0, sizeof(struct sockaddr_in)); // memsetで初期化
-        addr.sin_family = AF_INET; // アドレスファミリ(ipv4)
-        addr.sin_port = htons(port_num); // ポート番号, htons()関数は16bitホストバイトオーダーをネットワークバイトオーダーに変換
-        addr.sin_addr.s_addr = *ip; // IPアドレス
+        // 送信先毎にメッセージをまとめながら送信
+        for (auto& [dest, buf] : message_buffer) {
+            
+            std::unique_ptr<char[]> message(new char[MESSAGE_MAX_LENGTH]);
+            message[0] = '2';
 
-        // データ送信
-        sendto(sockfd, message.get(), MESSAGE_LENGTH, 0, (struct sockaddr *)&addr, sizeof(addr)); 
+            uint32_t now_length = 1;
+            while (buf.getSize() > 0) {
+
+                std::unique_ptr<char[]> RWer = buf.pop();
+
+                uint32_t RWer_length = (uint32_t)(RWer.get() + sizeof(uint32_t) * 3);
+
+                if (now_length + RWer_length >= MESSAGE_MAX_LENGTH) { // メッセージに収まりきらないときは先に送信してメッセージをリセット
+                    // アドレスの生成
+                    struct sockaddr_in addr; // 接続先の情報用の構造体(ipv4)
+                    memset(&addr, 0, sizeof(struct sockaddr_in)); // memsetで初期化
+                    addr.sin_family = AF_INET; // アドレスファミリ(ipv4)
+                    addr.sin_port = htons(port_num); // ポート番号, htons()関数は16bitホストバイトオーダーをネットワークバイトオーダーに変換
+                    addr.sin_addr.s_addr = dest; // IPアドレス
+
+                    // データ送信
+                    sendto(sockfd, message.get(), now_length, 0, (struct sockaddr *)&addr, sizeof(addr));
+
+                    now_length = 1;
+                }
+
+                // RWer をメッセージに詰める
+                memcpy(message.get() + now_length, RWer.get(), RWer_length);
+                now_length += RWer_length;
+            }
+
+            // 残りがあれば送信
+            if (now_length > 1) {
+                // アドレスの生成
+                struct sockaddr_in addr; // 接続先の情報用の構造体(ipv4)
+                memset(&addr, 0, sizeof(struct sockaddr_in)); // memsetで初期化
+                addr.sin_family = AF_INET; // アドレスファミリ(ipv4)
+                addr.sin_port = htons(port_num); // ポート番号, htons()関数は16bitホストバイトオーダーをネットワークバイトオーダーに変換
+                addr.sin_addr.s_addr = dest; // IPアドレス
+
+                // データ送信
+                sendto(sockfd, message.get(), now_length, 0, (struct sockaddr *)&addr, sizeof(addr));
+            }
+        }
+
     }
 }
 
@@ -340,9 +375,9 @@ inline void ARWS::receiveMessage(int sockfd, const uint16_t& port_num) {
 
     while (1) {
         // messageを受信
-        std::unique_ptr<char[]> message(new char[MESSAGE_LENGTH]);
-        memset(message.get(), 0, MESSAGE_LENGTH);
-        recv(sockfd, message.get(), MESSAGE_LENGTH, 0);
+        std::unique_ptr<char[]> message(new char[MESSAGE_MAX_LENGTH]);
+        memset(message.get(), 0, MESSAGE_MAX_LENGTH);
+        recv(sockfd, message.get(), MESSAGE_MAX_LENGTH, 0);
 
         // // デバッグ
         // std::cout << message.get() << std::endl;
@@ -466,5 +501,4 @@ inline void ARWS::sendToStartManager() {
 
 
 
-//// 2022/12/28 arws 完成
-//// 次は start_manager 作る
+//// 2023/3/14 送信スレッド作成する
