@@ -14,7 +14,7 @@
 #include <memory>
 #include <chrono>
 #include <thread>
-#include <cassert>
+#include <omp.h>
 
 #include "graph.hpp"
 #include "message_queue.hpp"
@@ -22,6 +22,7 @@
 #include "random_walk_config.hpp"
 #include "random_walker_manager.hpp"
 #include "random_walker.hpp"
+#include "measurement.hpp"
 
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
@@ -41,13 +42,16 @@ public :
     void generateRWer();
 
     // RW を実行する関数
-    void executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer);
+    void executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr);
 
     // メッセージ処理用の関数 (ポート番号毎)
     void procMessage(const uint16_t& port_num);
 
     // send_queue から RWer を取ってきて他サーバへ送信する関数 (ポート番号毎)
     void sendMessage(const uint16_t& port_num);
+
+    // RWer を送信する関数
+    void sendMessageFunc(RandomWalker& RWer, const uint32_t& dst_ip, int sockfd, const uint16_t& port_num);
 
     // 他サーバからメッセージを受信し, message_queue に push する関数 (ポート番号毎)
     void receiveMessage(int sockfd, const uint16_t& port_num);
@@ -72,19 +76,17 @@ private :
     StartFlag start_flag_; // 実験開始の合図に関する情報
     RandomWalkConfig RW_config_; // Random Walk 実行関連の設定
     RandomWalkerManager RW_manager_; // RWer に関する情報
-
+    Measurement measurement_; // 時間計測用
 
     // パラメタ (スレッド数)
-    const uint32_t SEND_RECV_PORT = 10;
+    const uint32_t SEND_RECV_PORT = 12;
     const uint32_t SEND_PER_PORT = 1;
     const uint32_t RECV_PER_PORT = 1;
     const uint32_t PROC_MESSAGE_PER_PORT = 1;
+    const uint32_t GENERATE_RWER = 4;
 
     // パラメタ (メッセージ長)
-    const size_t MESSAGE_MAX_LENGTH = 1450;
-
-    // パラメタ (メッセージ終了判定)
-    const uint32_t MESSAGE_END = 1100200300;
+    const size_t MESSAGE_LENGTH = 250;
 
     // 乱数関連
     std::mt19937 mt{std::random_device{}()}; // メルセンヌ・ツイスタを用いた乱数生成
@@ -165,6 +167,14 @@ inline void ARWS::start() {
 
 inline void ARWS::generateRWer() {
     std::cout << "generateRWer" << std::endl;
+
+    // ソケットの生成
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) { // エラー処理
+        perror("socket");
+        exit(1); // 異常終了
+    }  
+
     while (1) {
         // 開始通知を受けるまでロック
         start_flag_.lockWhileFalse();
@@ -177,10 +187,18 @@ inline void ARWS::generateRWer() {
 
         RW_manager_.init(number_of_my_vertices * number_of_RW_execution);
 
-        // debug
-        // std::cout << number_of_my_vertices * number_of_RW_execution << std::endl;
+        // uint32_t num_threads = GENERATE_RWER;
+        // omp_set_num_threads(num_threads);
+
+        measurement_.setStart();
+
+        // debug 
+        std::cout << number_of_my_vertices << std::endl;
+        std::cout << number_of_RW_execution << std::endl;
 
         uint32_t RWer_id = 0;
+        // int j;
+        // #pragma omp parallel for private(j) 
         for (int i = 0; i < number_of_my_vertices; i++) {
 
             uint32_t node_id = my_vertices[i];
@@ -198,10 +216,15 @@ inline void ARWS::generateRWer() {
                 RWer_id++;
             }
         }
+
+        measurement_.setEnd();
+
+        std::cout << measurement_.getExecutionTime() << std::endl;
     }
 }
 
 inline void ARWS::executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr) {
+
     while (1) {
         // 現在ノードの隣接ノード集合を入手
         std::vector<uint32_t> adjacency_vertices = graph_.getAdjacencyVertices(RWer_ptr->getCurrentNode());
@@ -213,10 +236,6 @@ inline void ARWS::executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr) {
         if (rand_double(mt) < RW_config_.getAlpha() || degree == 0) { // 確率 α もしくは次数 0 なら終了
 
             RWer_ptr->endRWer();
-
-            // debug
-            // assert(RWer_ptr->getEndFlag() == 1);
-
             uint32_t RWer_hostip = RWer_ptr->getHostip();
 
             if (RWer_hostip == hostip_) { // もし終了した RWer の起点サーバが今いるサーバである場合, 終了した RWer をこの場で処理
@@ -260,19 +279,23 @@ inline void ARWS::executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr) {
 
 inline void ARWS::procMessage(const uint16_t& port_num) {
     std::cout << "procMessage: " << port_num << std::endl;
+
     while (1) {
         // メッセージキューからメッセージを取得
         std::unique_ptr<char[]> message = receive_queue_[port_num].pop();
 
-        char message_id = message[0];
+        uint32_t* message_id = (uint32_t*)(message.get());
 
-        if (message_id == '1') { // 実験開始の合図 (id: 1B, IPアドレス: 4B, RW 実行回数: 4B)
+        if (*message_id == 1) { // 実験開始の合図 (id: 1B, IPアドレス: 4B, RW 実行回数: 4B)
 
-            uint32_t* ip = (uint32_t*)(message.get() + sizeof(char));
-            uint32_t* num_RWer = (uint32_t*)(message.get() + sizeof(char) + sizeof(uint32_t));
+            uint32_t* ip = (uint32_t*)(message.get() + sizeof(uint32_t));
+            uint32_t* num_RWer = (uint32_t*)(message.get() + sizeof(uint32_t) + sizeof(uint32_t));
 
             startmanagerip_ = *ip;
             RW_config_.setNumberOfRWExecution(*num_RWer);
+
+            // debug
+            std::cout << *num_RWer << std::endl;
 
             // 実験開始のフラグを立てる
             start_flag_.writeReady(true);
@@ -282,55 +305,23 @@ inline void ARWS::procMessage(const uint16_t& port_num) {
             // std::cout << *ip << std::endl;
             // std::cout << *num_RWer << std::endl;
 
-        } else if (message_id == '2') { // RWer のメッセージ (id: 1B, RWer, RWer, RWer, ...)
+        } else if (*message_id == 2) { // RWer のメッセージ (RWer: 220B)
             
-            uint32_t stream_length = sizeof(char);
-            uint32_t* RWer_id = (uint32_t*)(message.get() + stream_length);
+            // RandomWalker* RWer = (RandomWalker*)(message.get());
+            std::unique_ptr<RandomWalker> RWer_ptr((RandomWalker*)message.release());
 
-            // デバッグ用
-            int cnt = 0;
+            if (RWer_ptr->getEndFlag() == 1) { // 終了した RWer の処理
 
-            while (1) {
+                RW_manager_.setEndTime(RWer_ptr->getRWerId());
 
-                // debug
-                // std::cout << *RWer_id << std::endl;
-                assert(*RWer_id == MESSAGE_END || (0 <= *RWer_id && *RWer_id <= RW_config_.getNumberOfRWExecution() * graph_.getMyVerticesNum()));
+            } else { // まだ生存している RWer の処理
 
-                if (*RWer_id == MESSAGE_END) break;
+                // RW を実行
+                executeRandomWalk(std::move(RWer_ptr));
 
-                std::unique_ptr<RandomWalker> RWer_ptr = std::make_unique<RandomWalker>(*((RandomWalker*)(message.get() + stream_length)));
-
-                uint32_t RWer_data_length = RWer_ptr->getSize();
-
-                if (RWer_ptr->getEndFlag() == 1) { // 終了した RWer の処理
-
-                    RW_manager_.setEndTime(RWer_ptr->getRWerId());
-
-                    // debug
-                    // std::cout << "end RW" << std::endl;
-
-                } else if (RWer_ptr->getEndFlag() == 0) { // まだ生存している RWer の処理
-
-                    // RW を実行
-                    executeRandomWalk(std::move(RWer_ptr));
-
-                    // debug
-                    // std::cout << "not end RW" << std::endl;
-                } else {
-                    std::cout << "endflag error" << std::endl;
-                    return;
-                }         
-
-                stream_length += RWer_data_length;
-                RWer_id = (uint32_t*)(message.get() + stream_length); // 次の RWer_id を特定
-
-                // cnt++;
-                // assert(cnt < 50);
             }
 
-            // if (cnt > 1) std::cout << cnt << std::endl;
-
-        } else if (message_id == '3') { // 実験結果を送信
+        } else if (*message_id == 3) { // 実験結果を送信
 
             sendToStartManager();
 
@@ -352,78 +343,40 @@ inline void ARWS::sendMessage(const uint16_t& port_num) {
     }  
 
     while (1) {
-        // message_buffer: 送信先毎のRWerを詰めるバッファ
-        std::unordered_map<uint32_t, MessageQueue<RandomWalker>> message_buffer;
+        // send_queue からメッセージを入手 
+        // RWer のメッセージ (id: 1B, 送信先 IP アドレス: 4B, RWer: 216B)
+        std::unique_ptr<RandomWalker> message = send_queue_[port_num].pop();
 
-        send_queue_[port_num].pop(message_buffer, graph_);
-
-        // 送信先毎にメッセージをまとめながら送信
-        for (auto& [dest, buf] : message_buffer) {
-            
-            std::unique_ptr<char[]> message(new char[MESSAGE_MAX_LENGTH]);
-            message[0] = '2';
-
-            uint32_t now_length = 1;
-
-            // デバッグ用
-            int cnt = 0;
-
-            while (buf.getSize() > 0) {
-
-                std::unique_ptr<RandomWalker> RWer = buf.pop();
-                
-                // RWer長
-                uint32_t RWer_data_length = RWer->getSize();
-
-                if (now_length + RWer_data_length >= MESSAGE_MAX_LENGTH - sizeof(MESSAGE_END)) { // メッセージに収まりきらないときは先に送信してメッセージをリセット
-                    // アドレスの生成
-                    struct sockaddr_in addr; // 接続先の情報用の構造体(ipv4)
-                    memset(&addr, 0, sizeof(struct sockaddr_in)); // memsetで初期化
-                    addr.sin_family = AF_INET; // アドレスファミリ(ipv4)
-                    addr.sin_port = htons(port_num); // ポート番号, htons()関数は16bitホストバイトオーダーをネットワークバイトオーダーに変換
-                    addr.sin_addr.s_addr = dest; // IPアドレス
-
-                    // メッセージ終了の目印を書き込む
-                    memcpy(message.get() + now_length, &MESSAGE_END, sizeof(MESSAGE_END));
-                    now_length += sizeof(MESSAGE_END);
-
-                    // データ送信
-                    sendto(sockfd, message.get(), now_length, 0, (struct sockaddr *)&addr, sizeof(addr));
-
-                    now_length = 1;
-                }
-
-                // RWerの中身をメッセージに詰める
-                memcpy(message.get() + now_length, RWer.get(), RWer_data_length);
-                now_length += RWer_data_length;
-
-                // debug
-                // cnt++;
-            }
-
-            // 残りがあれば送信
-            if (now_length > 1) {
-                // アドレスの生成
-                struct sockaddr_in addr; // 接続先の情報用の構造体(ipv4)
-                memset(&addr, 0, sizeof(struct sockaddr_in)); // memsetで初期化
-                addr.sin_family = AF_INET; // アドレスファミリ(ipv4)
-                addr.sin_port = htons(port_num); // ポート番号, htons()関数は16bitホストバイトオーダーをネットワークバイトオーダーに変換
-                addr.sin_addr.s_addr = dest; // IPアドレス
-
-                // メッセージ終了の目印を書き込む
-                memcpy(message.get() + now_length, &MESSAGE_END, sizeof(MESSAGE_END));
-                now_length += sizeof(MESSAGE_END);
-
-                // データ送信
-                sendto(sockfd, message.get(), now_length, 0, (struct sockaddr *)&addr, sizeof(addr));
-            }
-
-            // debug
-            // if (cnt > 10) std::cout << cnt << std::endl;
-            
+        // 送信先 IP アドレス
+        uint32_t ip;
+        if (message->getEndFlag() == 1) { // 終了している場合
+            ip = message->getHostip();
+        } else { // 終了していない場合
+            ip = graph_.getIP(message->getCurrentNode());
         }
 
+        // アドレスの生成
+        struct sockaddr_in addr; // 接続先の情報用の構造体(ipv4)
+        memset(&addr, 0, sizeof(struct sockaddr_in)); // memsetで初期化
+        addr.sin_family = AF_INET; // アドレスファミリ(ipv4)
+        addr.sin_port = htons(port_num); // ポート番号, htons()関数は16bitホストバイトオーダーをネットワークバイトオーダーに変換
+        addr.sin_addr.s_addr = ip; // IPアドレス
+
+        // データ送信
+        sendto(sockfd, message.get(), MESSAGE_LENGTH, 0, (struct sockaddr *)&addr, sizeof(addr)); 
     }
+}
+
+inline void ARWS::sendMessageFunc(RandomWalker& RWer, const uint32_t& dst_ip, int sockfd, const uint16_t& port_num) {
+    // アドレスの生成
+    struct sockaddr_in addr; // 接続先の情報用の構造体(ipv4)
+    memset(&addr, 0, sizeof(struct sockaddr_in)); // memsetで初期化
+    addr.sin_family = AF_INET; // アドレスファミリ(ipv4)
+    addr.sin_port = htons(port_num); // ポート番号, htons()関数は16bitホストバイトオーダーをネットワークバイトオーダーに変換
+    addr.sin_addr.s_addr = dst_ip; // IPアドレス
+
+    // データ送信
+    sendto(sockfd, &RWer, MESSAGE_LENGTH, 0, (struct sockaddr *)&addr, sizeof(addr)); 
 }
 
 inline void ARWS::receiveMessage(int sockfd, const uint16_t& port_num) {
@@ -431,9 +384,9 @@ inline void ARWS::receiveMessage(int sockfd, const uint16_t& port_num) {
 
     while (1) {
         // messageを受信
-        std::unique_ptr<char[]> message(new char[MESSAGE_MAX_LENGTH]);
-        memset(message.get(), 0, MESSAGE_MAX_LENGTH);
-        recv(sockfd, message.get(), MESSAGE_MAX_LENGTH, 0);
+        std::unique_ptr<char[]> message(new char[MESSAGE_LENGTH]);
+        memset(message.get(), 0, MESSAGE_LENGTH);
+        recv(sockfd, message.get(), MESSAGE_LENGTH, 0);
 
         // // デバッグ
         // std::cout << message.get() << std::endl;
@@ -557,5 +510,5 @@ inline void ARWS::sendToStartManager() {
 
 
 
-//// 2023/3/14 送信スレッド作成する
-//// 2023/3/16 MessageQueue, メッセージ処理スレッド
+//// 2022/12/28 arws 完成
+//// 次は start_manager 作る

@@ -2,7 +2,6 @@
 
 #include <chrono>
 #include <algorithm>
-#include <cassert>
 
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
@@ -66,9 +65,6 @@ inline void RandomWalkerManager::setStartTime(const uint32_t& RWer_id) {
 }
 
 inline void RandomWalkerManager::setEndTime(const uint32_t& RWer_id) {
-    // debug
-    assert(end_flag_per_RWer_id_[RWer_id] == false);
-
     end_flag_per_RWer_id_[RWer_id] = true;
     end_time_per_RWer_id_[RWer_id] = std::chrono::system_clock::now();
 }

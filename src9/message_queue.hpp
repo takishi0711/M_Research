@@ -59,7 +59,7 @@ public :
         }
     }
 
-    // message_queue_ からメッセージをまとめて取り出す (RWer 用)
+    // message_queue_ からメッセージをまとめて取り出す (RWer 用、ポート番号毎の送信キュー)
     void pop(std::unordered_map<uint32_t, MessageQueue>& message_buffer, Graph& graph) {
         { // 排他制御
             std::unique_lock<std::mutex> uniq_lk(mtx_message_queue_);
@@ -84,6 +84,40 @@ public :
                 message_queue_.pop();
             }
         }        
+    }
+
+    // message_queue_ からメッセージをまとめて取り出す (RWer 用、送信先毎の送信キュー)
+    // メッセージ長を返す
+    uint32_t pop(char* message, const uint32_t& MESSAGE_MAX_LENGTH) {
+        { // 排他制御
+            std::unique_lock<std::mutex> uniq_lk(mtx_message_queue_);
+
+            // RWer_Queue が空じゃなくなるまで待機
+            cv_message_queue_.wait(uniq_lk, [&]{ return !message_queue_.empty(); });
+
+            uint32_t now_length = 0;
+
+            while (message_queue_.size()) {
+
+                std::unique_ptr<RandomWalker> RWer = std::move(message_queue_.front());
+
+                message_queue_.pop();
+
+                // RWer データサイズ
+                uint32_t RWer_data_length = RWer->getSize();
+
+                if (now_length + RWer_data_length >= MESSAGE_MAX_LENGTH) { // メッセージに収まりきらなくなったら終了
+                    message_queue_.push(std::move(RWer));
+                    return now_length;
+                }
+
+                // RWerの中身をメッセージに詰める
+                memcpy(message + now_length, RWer.get(), RWer_data_length);
+                now_length += RWer_data_length;
+            }
+
+            return now_length;
+        }  
     }
 
     // message_queue_ のサイズを入手

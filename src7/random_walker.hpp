@@ -4,15 +4,15 @@
 #include <vector>
 #include <sstream>
 
-const uint32_t MAX_PATH_LENGTH = 100;
+const uint32_t MAX_PATH_LENGTH = 50;
 
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
 
-// RWer のサイズは 4 + 4 + 4 + 2 + 2 + length*4= 16 + length*4
-struct RandomWalker {
+// RWer のサイズは 4 + 4 + 4 + 4 + 4*50 + 2 + 2 = 220B
+class RandomWalker {
 
 public :
 
@@ -46,17 +46,15 @@ public :
     // RWer を終了させる
     void endRWer();
 
-    // RWer のサイズ
-    uint32_t getSize();
-
 private :
     
+    uint32_t message_id_ = 2; // RWer の識別
     uint32_t RWer_id_; // RWer の ID
     uint32_t hostip_; // 起点サーバの IP アドレス
     uint32_t current_node_; // 現在のノード
     uint16_t path_length_; // RWer の経路長
     uint16_t end_flag_; // RWが終了しているか
-    uint32_t path_[100]; // RWer の経路情報
+    uint32_t path_[MAX_PATH_LENGTH]; // RWer の経路情報
 
 };
 
@@ -107,13 +105,9 @@ inline uint16_t RandomWalker::getEndFlag() {
 inline void RandomWalker::updateRWer(const uint32_t& next_node) {
     current_node_ = next_node;
     path_[path_length_] = next_node;
-    path_length_++;
+    if (path_length_ < MAX_PATH_LENGTH - 1) path_length_++;
 }
 
 inline void RandomWalker::endRWer() {
     end_flag_ = 1;
-}
-
-inline uint32_t RandomWalker::getSize() {
-    return 16 + (path_length_+1) * 4; // 一歩先の分まで確保
 }
