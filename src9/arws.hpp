@@ -544,7 +544,3 @@ inline void ARWS::sendToStartManager() {
     std::cout << "reset ok" << std::endl;
 }
 
-
-
-//// 2022/12/28 arws 完成
-//// 次は start_manager 作る

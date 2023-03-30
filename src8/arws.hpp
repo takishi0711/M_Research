@@ -509,6 +509,3 @@ inline void ARWS::sendToStartManager() {
 }
 
 
-
-//// 2022/12/28 arws 完成
-//// 次は start_manager 作る

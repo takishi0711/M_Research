@@ -75,7 +75,7 @@ private :
 
 
     // パラメタ (スレッド数)
-    const uint32_t SEND_RECV_PORT = 10;
+    const uint32_t SEND_RECV_PORT = 8;
     const uint32_t SEND_PER_PORT = 1;
     const uint32_t RECV_PER_PORT = 1;
     const uint32_t PROC_MESSAGE_PER_PORT = 1;
