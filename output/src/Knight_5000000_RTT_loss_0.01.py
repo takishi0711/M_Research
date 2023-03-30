@@ -2,17 +2,17 @@ from cProfile import label
 import numpy as np
 import matplotlib.pyplot as plt
 
-filename1 = '../KnightKing_5000000_RTT_0_loss_0.txt'
-filename2 = '../KnightKing_5000000_RTT_20_loss_0.txt'
-filename3 = '../KnightKing_5000000_RTT_40_loss_0.txt'
-filename4 = '../KnightKing_5000000_RTT_60_loss_0.txt'
-filename5 = '../KnightKing_5000000_RTT_80_loss_0.txt'
-filename6 = '../KnightKing_5000000_RTT_100_loss_0.txt'
-filename7 = '../KnightKing_5000000_RTT_120_loss_0.txt'
-filename8 = '../KnightKing_5000000_RTT_140_loss_0.txt'
-filename9 = '../KnightKing_5000000_RTT_160_loss_0.txt'
-filename10 = '../KnightKing_5000000_RTT_180_loss_0.txt'
-filename11 = '../KnightKing_5000000_RTT_200_loss_0.txt'
+filename1 = '../KnightKing_5000000_RTT_0_loss_0.01.txt'
+filename2 = '../KnightKing_5000000_RTT_20_loss_0.01.txt'
+filename3 = '../KnightKing_5000000_RTT_40_loss_0.01.txt'
+filename4 = '../KnightKing_5000000_RTT_60_loss_0.01.txt'
+filename5 = '../KnightKing_5000000_RTT_80_loss_0.01.txt'
+filename6 = '../KnightKing_5000000_RTT_100_loss_0.01.txt'
+filename7 = '../KnightKing_5000000_RTT_120_loss_0.01.txt'
+filename8 = '../KnightKing_5000000_RTT_140_loss_0.01.txt'
+filename9 = '../KnightKing_5000000_RTT_160_loss_0.01.txt'
+filename10 = '../KnightKing_5000000_RTT_180_loss_0.01.txt'
+filename11 = '../KnightKing_5000000_RTT_200_loss_0.01.txt'
 
 data1 = np.loadtxt(filename1, unpack=True)
 data2 = np.loadtxt(filename2, unpack=True)

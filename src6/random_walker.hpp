@@ -115,5 +115,5 @@ inline void RandomWalker::endRWer() {
 }
 
 inline uint32_t RandomWalker::getSize() {
-    return 16 + path_length_ * 4;
+    return 16 + (path_length_+1) * 4; // 一歩先の分まで確保
 }
