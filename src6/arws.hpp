@@ -15,6 +15,7 @@
 #include <chrono>
 #include <thread>
 #include <cassert>
+#include <omp.h>
 
 #include "graph.hpp"
 #include "message_queue.hpp"
@@ -22,6 +23,7 @@
 #include "random_walk_config.hpp"
 #include "random_walker_manager.hpp"
 #include "random_walker.hpp"
+#include "measurement.hpp"
 
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
@@ -72,6 +74,7 @@ private :
     StartFlag start_flag_; // 実験開始の合図に関する情報
     RandomWalkConfig RW_config_; // Random Walk 実行関連の設定
     RandomWalkerManager RW_manager_; // RWer に関する情報
+    Measurement measurement_; // 時間計測用
 
 
     // パラメタ (スレッド数)
@@ -79,6 +82,7 @@ private :
     const uint32_t SEND_PER_PORT = 1;
     const uint32_t RECV_PER_PORT = 1;
     const uint32_t PROC_MESSAGE_PER_PORT = 1;
+    const uint32_t GENERATE_RWER = 4;
 
     // パラメタ (メッセージ長)
     const size_t MESSAGE_MAX_LENGTH = 1450;
@@ -180,12 +184,22 @@ inline void ARWS::generateRWer() {
         // debug
         // std::cout << number_of_my_vertices * number_of_RW_execution << std::endl;
 
-        uint32_t RWer_id = 0;
+        uint32_t num_threads = GENERATE_RWER;
+        omp_set_num_threads(num_threads);
+
+        measurement_.setStart();
+
+        // uint32_t RWer_id = 0;
+        int j;
+        #pragma omp parallel for private(j) 
         for (int i = 0; i < number_of_my_vertices; i++) {
 
             uint32_t node_id = my_vertices[i];
 
             for (int j = 0; j < number_of_RW_execution; j++) {
+
+                uint32_t RWer_id = i * number_of_RW_execution + j;
+
                 // RWer を生成
                 std::unique_ptr<RandomWalker> RWer_ptr = std::make_unique<RandomWalker>(RandomWalker(node_id, RWer_id, hostip_));
 
@@ -195,9 +209,13 @@ inline void ARWS::generateRWer() {
                 // RW を実行 
                 executeRandomWalk(std::move(RWer_ptr));
 
-                RWer_id++;
+                // RWer_id++;
             }
         }
+
+        measurement_.setEnd();
+
+        std::cout << measurement_.getExecutionTime() << std::endl;
     }
 }
 

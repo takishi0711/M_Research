@@ -79,7 +79,7 @@ private :
     Measurement measurement_; // 時間計測用
 
     // パラメタ (スレッド数)
-    const uint32_t SEND_RECV_PORT = 12;
+    const uint32_t SEND_RECV_PORT = 14;
     const uint32_t SEND_PER_PORT = 1;
     const uint32_t RECV_PER_PORT = 1;
     const uint32_t PROC_MESSAGE_PER_PORT = 1;

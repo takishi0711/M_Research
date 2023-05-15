@@ -79,7 +79,7 @@ private :
     Measurement measurement_; // 時間計測用
 
     // パラメタ (スレッド数)
-    const uint32_t SEND_RECV_PORT = 14;
+    const uint32_t SEND_RECV_PORT = 10;
     const uint32_t SEND_PER_PORT = 1;
     const uint32_t RECV_PER_PORT = 1;
     const uint32_t PROC_MESSAGE_PER_PORT = 1;
@@ -207,8 +207,8 @@ inline void ARWS::generateRWer() {
 
         RW_manager_.init(number_of_my_vertices * number_of_RW_execution);
 
-        // uint32_t num_threads = GENERATE_RWER;
-        // omp_set_num_threads(num_threads);
+        uint32_t num_threads = GENERATE_RWER;
+        omp_set_num_threads(num_threads);
 
         measurement_.setStart();
 
@@ -216,14 +216,17 @@ inline void ARWS::generateRWer() {
         std::cout << number_of_my_vertices << std::endl;
         std::cout << number_of_RW_execution << std::endl;
 
-        uint32_t RWer_id = 0;
-        // int j;
-        // #pragma omp parallel for private(j) 
+        // uint32_t RWer_id = 0;
+        int j;
+        #pragma omp parallel for private(j) 
         for (int i = 0; i < number_of_my_vertices; i++) {
 
             uint32_t node_id = my_vertices[i];
 
             for (int j = 0; j < number_of_RW_execution; j++) {
+
+                uint32_t RWer_id = i * number_of_RW_execution + j;
+
                 // RWer を生成
                 std::unique_ptr<RandomWalker> RWer_ptr = std::make_unique<RandomWalker>(RandomWalker(node_id, RWer_id, hostip_));
 
@@ -233,7 +236,7 @@ inline void ARWS::generateRWer() {
                 // RW を実行 
                 executeRandomWalk(std::move(RWer_ptr));
 
-                RWer_id++;
+                // RWer_id++;
             }
         }
 
