@@ -61,10 +61,10 @@ public :
     uint32_t getCacheIP(const uint32_t& node_ID);
 
     // エッジをキャッシュに追加
-    void addEdgeToCache(const uint32_t& node_ID_u, const uint32_t& hostip_u, const uint32_t& degree_u, const uint32_t& node_ID_v, const uint32_t& hostip_v, const uint32_t& degree_v);
+    void addEdgeToCache(const uint32_t& node_ID_u, const uint32_t& hostip_u, const uint32_t& degree_u, const uint32_t& node_ID_v, const uint32_t& hostip_v, const uint32_t& degree_v, const std::unordered_set<uint32_t>& ip_set);
 
-    // エッジの存在確認＆新規登録
-    
+    // 引数のサーバが引数のエッジをキャッシュとして持っているかどうか
+    bool hasServerCacheEdge(const uint32_t& ip, const uint32_t& node_ID_u, const uint32_t& node_ID_v);
     
 private :
 
@@ -73,6 +73,8 @@ private :
     std::unordered_map<uint32_t, uint32_t> vertices_IP_; // 自サーバが保持しているノードの持ち主の IP アドレス {ノード ID : IP アドレス (ノードの持ち主)}
     std::unordered_map<uint32_t, std::vector<uint32_t>> adjacency_list_; // 自サーバの隣接リスト {ノード ID : 隣接リスト}
     std::unordered_map<uint32_t, uint32_t> degree_; // 自サーバが持ち主となるノードの次数
+
+    std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::unordered_set<uint32_t>>> servers_who_used_edge_; // エッジ (u, v) をキャッシュとして保存しているであろうサーバ集合 <u, <v, サーバ集合>>
 
     // キャッシュ情報
     std::unordered_map<uint32_t, uint32_t> vertices_IP_cache_; // 持ち主が他サーバの頂点に関する, 持ち主の IP アドレス {ノード ID : IP アドレス (ノードの持ち主)}
@@ -115,15 +117,18 @@ inline void Graph::init(const std::string& dir_path, const std::string& hostname
 }
 
 inline void Graph::addEdge(const std::vector<std::string>& words, const uint32_t& hostip) { // words : [ノード 1, ノード 2, ノード 2 の IP アドレス]
-    my_vertices_.insert(std::stoi(words[0])); // ノード 1 の持ち主は自分
-    vertices_IP_[std::stoi(words[0])] = hostip; // ノード 1 の IP アドレスを代入
-    vertices_IP_[std::stoi(words[1])] = inet_addr(words[2].c_str()); // ノード 2 の IP アドレスを代入
-    adjacency_list_[std::stoi(words[0])].push_back(std::stoi(words[1])); // ノード １ の隣接リストにノード 2 を追加
-    degree_[std::stoi(words[0])] = adjacency_list_[std::stoi(words[0])].size(); // 次数を更新
+    uint32_t u = std::stoi(words[0]), v = std::stoi(words[1]);
+    my_vertices_.insert(u); // ノード 1 の持ち主は自分
+    vertices_IP_[u] = hostip; // ノード 1 の IP アドレスを代入
+    vertices_IP_[v] = inet_addr(words[2].c_str()); // ノード 2 の IP アドレスを代入
+    adjacency_list_[u].push_back(v); // ノード １ の隣接リストにノード 2 を追加
+    degree_[u] = adjacency_list_[u].size(); // 次数を更新
 
-    if (vertices_IP_[std::stoi(words[1])] != hostip) { // キャッシュノードの mutex を登録
-        mtx_node_cache_[std::stoi(words[1])];
+    if (vertices_IP_[v] != hostip) { // キャッシュノードの mutex を登録
+        mtx_node_cache_[v];
     }
+
+    servers_who_used_edge_[u][v].size(); // エッジ (u, v) を登録
 }
 
 inline uint32_t Graph::getMyVerticesNum() {
@@ -147,7 +152,7 @@ inline uint32_t Graph::getDegree(const uint32_t& node_ID) {
 }
 
 inline bool Graph::hasVertex(const uint32_t& node_ID) {
-    return my_vertices_.count(node_ID);
+    return my_vertices_.contains(node_ID);
 }
 
 inline void Graph::nodeCache(const uint32_t& node_ID, const uint32_t& hostip, const uint32_t& degree) {
@@ -157,7 +162,7 @@ inline void Graph::nodeCache(const uint32_t& node_ID, const uint32_t& hostip, co
     { // 共有ロックで存在だけ確認 
         std::shared_lock<std::shared_mutex> lock(mtx_mtx_node_cache_);
 
-        if (mtx_node_cache_.count(node_ID)) exist_mtx = true;
+        if (mtx_node_cache_.contains(node_ID)) exist_mtx = true;
     }
 
     if (exist_mtx == false) { // 存在しない場合のみ占有ロック
@@ -174,7 +179,7 @@ inline void Graph::nodeCache(const uint32_t& node_ID, const uint32_t& hostip, co
     { // 共有ロックで存在だけ確認
         std::shared_lock<std::shared_mutex> lock(mtx_node_cache_[node_ID]);
 
-        if (vertices_IP_cache_.count(node_ID)) exist_node_data = true;
+        if (vertices_IP_cache_.contains(node_ID)) exist_node_data = true;
     }
 
     if (exist_node_data == false) { // 存在しない場合のみ占有ロック
@@ -190,15 +195,15 @@ inline void Graph::nodeCache(const uint32_t& node_ID, const uint32_t& hostip, co
 
 inline bool Graph::hasCacheDegree(const uint32_t& node_ID) {
     {
-        std::shared_lock<std::shared_mutex> lk(mtx_node_cache_[node_ID]);
+        std::shared_lock<std::shared_mutex> lock(mtx_node_cache_[node_ID]);
 
-        return degree_cache_.count(node_ID);
+        return degree_cache_.contains(node_ID);
     }
 }
 
 inline uint32_t Graph::getCacheDegree(const uint32_t& node_ID) {
     {
-        std::shared_lock<std::shared_mutex> lk(mtx_node_cache_[node_ID]);
+        std::shared_lock<std::shared_mutex> lock(mtx_node_cache_[node_ID]);
 
         return degree_cache_[node_ID];
     }
@@ -206,7 +211,7 @@ inline uint32_t Graph::getCacheDegree(const uint32_t& node_ID) {
 
 inline std::vector<uint32_t> Graph::getCacheAdjacencyList(const uint32_t& node_ID) {
     {
-        std::shared_lock<std::shared_mutex> lk(mtx_node_cache_[node_ID]);
+        std::shared_lock<std::shared_mutex> lock(mtx_node_cache_[node_ID]);
 
         return adjacency_list_cache_[node_ID];
     }
@@ -214,15 +219,23 @@ inline std::vector<uint32_t> Graph::getCacheAdjacencyList(const uint32_t& node_I
 
 inline uint32_t Graph::getCacheIP(const uint32_t& node_ID) {
     {
-        std::shared_lock<std::shared_mutex> lk(mtx_node_cache_[node_ID]);
+        std::shared_lock<std::shared_mutex> lock(mtx_node_cache_[node_ID]);
 
         return vertices_IP_cache_[node_ID];
     }
 }
 
-inline void Graph::addEdgeToCache(const uint32_t& node_ID_u, const uint32_t& hostip_u, const uint32_t& degree_u, const uint32_t& node_ID_v, const uint32_t& hostip_v, const uint32_t& degree_v) {
+inline void Graph::addEdgeToCache(const uint32_t& node_ID_u, const uint32_t& hostip_u, const uint32_t& degree_u, const uint32_t& node_ID_v, const uint32_t& hostip_v, const uint32_t& degree_v, const std::unordered_set<uint32_t>& ip_set) {
     // u が自分のサーバのものだったらキャッシュに登録する必要はない
-    if (hasVertex(node_ID_u)) return;
+    // 自サーバのエッジをキャッシュとして登録するであろうサーバ集合を登録
+    if (hasVertex(node_ID_u)) {
+
+        for (uint32_t ip : ip_set) {
+            servers_who_used_edge_[node_ID_u][node_ID_v].insert(ip);
+        }
+        
+        return;
+    }
 
     // 頂点 u, v についてキャッシュに登録されてなかったら登録
     nodeCache(node_ID_u, hostip_u, degree_u);
@@ -232,7 +245,7 @@ inline void Graph::addEdgeToCache(const uint32_t& node_ID_u, const uint32_t& hos
     bool exist_edge = false;
     uint32_t vec_size = 0;
     {
-        std::shared_lock<std::shared_mutex> lk(mtx_node_cache_[node_ID_u]);
+        std::shared_lock<std::shared_mutex> lock(mtx_node_cache_[node_ID_u]);
 
         std::vector<uint32_t> vec = adjacency_list_cache_[node_ID_u];
         vec_size = vec.size();
@@ -262,4 +275,8 @@ inline void Graph::addEdgeToCache(const uint32_t& node_ID_u, const uint32_t& hos
             }
         }
     }
+}
+
+inline bool Graph::hasServerCacheEdge(const uint32_t& ip, const uint32_t& node_ID_u, const uint32_t& node_ID_v) {
+    return servers_who_used_edge_[node_ID_u][node_ID_v].contains(ip);
 }

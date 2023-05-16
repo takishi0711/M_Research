@@ -12,11 +12,12 @@ const uint32_t MAX_PATH_LENGTH = 50;
 //////////////////////////////////////////////////////////////////////////
 
 
-// RWer のサイズは 1 + 1 + 2 + 4 + (4 + 4 + 4)*50 = 608B (8 + 12 * path_length_)
+// RWer のサイズは 1 + 1 + 2 + 4 + 4 + (4 + 4 + 4)*50 = 612B (12 + 12 * path_length_)
 // メッセージID : 1B
 // 終了しているかのフラグ : 1B
 // 経路長 : 2B
 // RWerID : 4B
+// 一個前はどこのサーバ？ : 4B
 // 経路情報 : 頂点, HostIP, 次数 (4B, 4B, 4B)
 class RandomWalker {
 
@@ -62,6 +63,12 @@ public :
     // 通ってきたサーバ集合 (IPアドレス) を入手
     std::unordered_set<uint32_t> getServerGroup();
 
+    // prev_ip_の取得
+    uint32_t getPrevIp();
+
+    // prev_ip_の変更
+    void inputPrevIp(const uint32_t& ip);
+
 
 private :
     
@@ -69,6 +76,7 @@ private :
     uint8_t end_flag_; // RWが終了しているか
     uint16_t path_length_; // RWer の経路長
     uint32_t RWer_id_; // RWer の ID    
+    uint32_t prev_ip_ = 0; // 一個前はどこのサーバ？
     uint32_t path_[MAX_PATH_LENGTH*3]; // RWer の経路情報
 
 };
@@ -134,7 +142,7 @@ inline void RandomWalker::endRWer() {
 }
 
 inline uint32_t RandomWalker::getSize() {
-    return 8 + (path_length_+1) * 12; // 一歩先の分まで確保
+    return 12 + (path_length_+1) * 12; // 一歩先の分まで確保
 }
 
 inline std::unordered_set<uint32_t> RandomWalker::getServerGroup() {
@@ -143,4 +151,12 @@ inline std::unordered_set<uint32_t> RandomWalker::getServerGroup() {
         ip_set.insert(path_[i*3 + 1]);
     }
     return ip_set;
+}
+
+inline uint32_t RandomWalker::getPrevIp() {
+    return prev_ip_;
+}
+
+inline void RandomWalker::inputPrevIp(const uint32_t& ip) {
+    prev_ip_ = ip;
 }

@@ -256,13 +256,16 @@ inline void ARWS::generateRWer() {
 inline void ARWS::executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr) {
 
     while (1) {
-        if (graph_.hasVertex(RWer_ptr->getCurrentNode())) { // 元グラフのデータを参照して RW
+        
+        uint32_t current_node = RWer_ptr->getCurrentNode(); // 現在頂点
+
+        if (graph_.hasVertex(current_node)) { // 元グラフのデータを参照して RW
 
             // 現在頂点の次数情報を RWer に入力
-            RWer_ptr->inputCurrentDegree(graph_.getDegree(RWer_ptr->getCurrentNode()));
+            RWer_ptr->inputCurrentDegree(graph_.getDegree(current_node));
 
             // RW を一歩進める
-            if (rand_double(mt) < RW_config_.getAlpha() || graph_.getDegree(RWer_ptr->getCurrentNode()) == 0) { // 確率 α もしくは次数 0 なら終了
+            if (rand_double(mt) < RW_config_.getAlpha() || graph_.getDegree(current_node) == 0) { // 確率 α もしくは次数 0 なら終了
                 
                 // 終了した RWer の処理 
                 endRandomWalk(std::move(RWer_ptr));
@@ -271,27 +274,43 @@ inline void ARWS::executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr) {
 
             } else { // ランダムな隣接ノードへ遷移
 
-                std::uniform_int_distribution<int> rand_int(0, graph_.getDegree(RWer_ptr->getCurrentNode()) - 1);
-                uint32_t next_node = graph_.getAdjacencyVertices(RWer_ptr->getCurrentNode())[rand_int(mt)];
+                std::uniform_int_distribution<int> rand_int(0, graph_.getDegree(current_node) - 1);
+
+                uint32_t next_node = graph_.getAdjacencyVertices(current_node)[rand_int(mt)];
+
+                if (RWer_ptr->getPrevIp() != 0) { // 他のサーバから送られてきた && このサーバでの一歩目のとき
+
+                    // reduction sampling
+                    // もしもの時のために無限ループ防止 (10000 回ループしたらスキップ)
+                    int count = 0;
+                    while (graph_.hasServerCacheEdge(RWer_ptr->getPrevIp(), current_node, next_node) && count < 10000) {
+
+                        next_node = graph_.getAdjacencyVertices(current_node)[rand_int(mt)];
+                        count++;
+                        
+                    }
+
+                    RWer_ptr->inputPrevIp(0);
+
+                } 
 
                 RWer_ptr->updateRWer(next_node, graph_.getIP(next_node), 0);
-
             }
 
         } else { // キャッシュデータを参照して RW
 
             // 現在頂点の次数情報があるか確認
-            if (!graph_.hasCacheDegree(RWer_ptr->getCurrentNode())) { // 次数情報がない (元グラフの他サーバ隣接ノード)
+            if (!graph_.hasCacheDegree(current_node)) { // 次数情報がない (元グラフの他サーバ隣接ノード)
 
-                send_queue_[graph_.getIP(RWer_ptr->getCurrentNode())].push(std::move(RWer_ptr));
+                send_queue_[graph_.getIP(current_node)].push(std::move(RWer_ptr));
 
                 break;
 
             } 
         
             // 必要な情報 (次数, 隣接リスト) をキャッシュからコピーして取ってくる (ロック削減のため)
-            uint32_t degree = graph_.getCacheDegree(RWer_ptr->getCurrentNode());
-            std::vector<uint32_t> adjacency_list = graph_.getCacheAdjacencyList(RWer_ptr->getCurrentNode());
+            uint32_t degree = graph_.getCacheDegree(current_node);
+            std::vector<uint32_t> adjacency_list = graph_.getCacheAdjacencyList(current_node);
 
             // 現在頂点の次数情報を RWer に入力
             RWer_ptr->inputCurrentDegree(degree);
@@ -317,7 +336,7 @@ inline void ARWS::executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr) {
 
                 } else { // 遷移先が不明のため送信
 
-                    send_queue_[graph_.getCacheIP(RWer_ptr->getCurrentNode())].push(std::move(RWer_ptr));
+                    send_queue_[graph_.getCacheIP(current_node)].push(std::move(RWer_ptr));
 
                     break;
 
@@ -351,14 +370,17 @@ inline void ARWS::checkRWer(std::unique_ptr<RandomWalker>&& RWer_ptr) {
         RW_manager_.setEndTime(RWer_ptr->getRWerId());
     }
 
+    // RWer が通ってきたサーバの集合を入手
+    std::unordered_set<uint32_t> ip_set = RWer_ptr->getServerGroup();
+
     // RWer の経路情報を見てグラフデータをキャッシュに登録
     uint32_t path_length = RWer_ptr->getPathLength();
     uint32_t path[path_length]; // 経路情報 : 頂点, HostIP, 次数, 頂点, HostIP, 次数,...
     RWer_ptr->getPath(path);
     for (int i = 0; i < path_length-1; i++) {
         // 両方向エッジをキャッシュに追加
-        graph_.addEdgeToCache(path[i], path[i+1], path[i+2], path[i*3], path[i*3 + 1], path[i*3 + 2]);
-        graph_.addEdgeToCache(path[i*3], path[i*3 + 1], path[i*3 + 2], path[i], path[i+1], path[i+2]);
+        graph_.addEdgeToCache(path[i], path[i+1], path[i+2], path[i*3], path[i*3 + 1], path[i*3 + 2], ip_set);
+        graph_.addEdgeToCache(path[i*3], path[i*3 + 1], path[i*3 + 2], path[i], path[i+1], path[i+2], ip_set);
     }
 }
 
