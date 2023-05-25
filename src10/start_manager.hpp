@@ -107,9 +107,9 @@ inline void StartManager::sendStart(std::ofstream& ofs_time, std::ofstream& ofs_
         char message[MESSAGE_LENGTH];
         uint32_t message_ID = 1; // メッセージ ID (start は 1)
 
-        memcpy(message, &message_ID, sizeof(uint32_t));
-        memcpy(message + sizeof(uint32_t), &hostip_, sizeof(uint32_t));
-        memcpy(message + sizeof(uint32_t) + sizeof(uint32_t), &RW_execution_num_, sizeof(uint32_t));
+        memcpy(message, &message_ID, sizeof(message_ID));
+        memcpy(message + sizeof(message_ID), &hostip_, sizeof(hostip_));
+        memcpy(message + sizeof(message_ID) + sizeof(hostip_), &RW_execution_num_, sizeof(RW_execution_num_));
 
         // データ送信
         sendto(sockfd, message, MESSAGE_LENGTH, 0, (struct sockaddr *)&addr, sizeof(addr)); // 送信
@@ -138,9 +138,9 @@ inline void StartManager::sendEnd(std::ofstream& ofs_time, std::ofstream& ofs_re
 
         // メッセージ生成 (id: 4B)
         char message[MESSAGE_LENGTH];
-        uint32_t message_ID = 3; // メッセージ ID (end は 3)
+        uint8_t message_ID = 3; // メッセージ ID (end は 3)
 
-        memcpy(message, &message_ID, sizeof(uint32_t));
+        memcpy(message, &message_ID, sizeof(message_ID));
 
         // データ送信
         sendto(sockfd, message, MESSAGE_LENGTH, 0, (struct sockaddr *)&addr, sizeof(addr)); // 送信 
@@ -185,12 +185,13 @@ inline void StartManager::sendEnd(std::ofstream& ofs_time, std::ofstream& ofs_re
         count++;
     }
 
-    int drop_UDP = RW_execution_num_*split_num_*subgraph_size_ - sum_end_count;
-    std::cout << "drop_UDP : " << drop_UDP << std::endl;
+    // int drop_UDP = RW_execution_num_*split_num_*subgraph_size_ - sum_end_count;
+    // std::cout << "drop_UDP : " << drop_UDP << std::endl;
+    std::cout << "sum_end_count : " << sum_end_count << std::endl;
     std::cout << "max_all_execution_time : " << max_all_execution_time << std::endl;
 
     ofs_time << max_all_execution_time << std::endl; 
-    ofs_rerun << (double)drop_UDP / (split_num_*RW_execution_num_*subgraph_size_) * 100 << std::endl; 
+    // ofs_rerun << (double)drop_UDP / (split_num_*RW_execution_num_*subgraph_size_) * 100 << std::endl; 
 
     // サーバソケットクローズ
     close(sockfd); 

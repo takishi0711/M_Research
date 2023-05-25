@@ -65,6 +65,9 @@ public :
 
     // 引数のサーバが引数のエッジをキャッシュとして持っているかどうか
     bool hasServerCacheEdge(const uint32_t& ip, const uint32_t& node_ID_u, const uint32_t& node_ID_v);
+
+    // キャッシュリセット
+    void reset();
     
 private :
 
@@ -125,7 +128,8 @@ inline void Graph::addEdge(const std::vector<std::string>& words, const uint32_t
     degree_[u] = adjacency_list_[u].size(); // 次数を更新
 
     if (vertices_IP_[v] != hostip) { // キャッシュノードの mutex を登録
-        mtx_node_cache_[v];
+        mtx_node_cache_[v].lock();
+        mtx_node_cache_[v].unlock();
     }
 
     servers_who_used_edge_[u][v].size(); // エッジ (u, v) を登録
@@ -156,6 +160,9 @@ inline bool Graph::hasVertex(const uint32_t& node_ID) {
 }
 
 inline void Graph::nodeCache(const uint32_t& node_ID, const uint32_t& hostip, const uint32_t& degree) {
+    // debug
+    std::cout << "nodeCache" << std::endl;
+
     // ノードごとの mutex の登録
     bool exist_mtx = false;
 
@@ -195,7 +202,13 @@ inline void Graph::nodeCache(const uint32_t& node_ID, const uint32_t& hostip, co
 
 inline bool Graph::hasCacheDegree(const uint32_t& node_ID) {
     {
-        std::shared_lock<std::shared_mutex> lock(mtx_node_cache_[node_ID]);
+        // // debug
+        // if (!mtx_node_cache_.contains(node_ID)) {
+        //     perror("not exist mtx of node_ID");
+        //     exit(1); // 異常終了
+        // }
+
+        std::shared_lock<std::shared_mutex> lock(mtx_node_cache_.at(node_ID));
 
         return degree_cache_.contains(node_ID);
     }
@@ -226,6 +239,9 @@ inline uint32_t Graph::getCacheIP(const uint32_t& node_ID) {
 }
 
 inline void Graph::addEdgeToCache(const uint32_t& node_ID_u, const uint32_t& hostip_u, const uint32_t& degree_u, const uint32_t& node_ID_v, const uint32_t& hostip_v, const uint32_t& degree_v, const std::unordered_set<uint32_t>& ip_set) {
+    // debug
+    std::cout << "addEdgeToCache" << std::endl;
+
     // u が自分のサーバのものだったらキャッシュに登録する必要はない
     // 自サーバのエッジをキャッシュとして登録するであろうサーバ集合を登録
     if (hasVertex(node_ID_u)) {
@@ -279,4 +295,16 @@ inline void Graph::addEdgeToCache(const uint32_t& node_ID_u, const uint32_t& hos
 
 inline bool Graph::hasServerCacheEdge(const uint32_t& ip, const uint32_t& node_ID_u, const uint32_t& node_ID_v) {
     return servers_who_used_edge_[node_ID_u][node_ID_v].contains(ip);
+}
+
+inline void Graph::reset() {
+    vertices_IP_cache_.clear();
+    adjacency_list_cache_.clear();
+    degree_cache_.clear();
+
+    for (auto u : servers_who_used_edge_) {
+        for (auto v : u.second) {
+            v.second.clear();
+        }
+    }
 }

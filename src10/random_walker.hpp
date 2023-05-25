@@ -4,6 +4,7 @@
 #include <vector>
 #include <sstream>
 #include <unordered_set>
+#include <iostream>
 
 const uint32_t MAX_PATH_LENGTH = 50;
 
@@ -68,6 +69,9 @@ public :
 
     // prev_ip_の変更
     void inputPrevIp(const uint32_t& ip);
+
+    // RWerの情報を出力
+    void printRWer();
 
 
 private :
@@ -159,4 +163,20 @@ inline uint32_t RandomWalker::getPrevIp() {
 
 inline void RandomWalker::inputPrevIp(const uint32_t& ip) {
     prev_ip_ = ip;
+}
+
+inline void RandomWalker::printRWer() {
+    std::cout << "/////////////////////" << std::endl;
+    std::cout << "message_id_: " << +message_id_ << std::endl;
+    std::cout << "end_flag_: " << +end_flag_ << std::endl;
+    std::cout << "path_length_: " << path_length_ << std::endl;
+    std::cout << "RWer_id_: " << RWer_id_ << std::endl;
+    std::cout << "prev_ip_: " << prev_ip_ << std::endl;
+    std::cout << "path_: ";
+    for (int i = 0; i < path_length_; i++) {
+        std::cout << path_[i*3] << " ";
+    }
+    std::cout << std::endl;
+    std::cout << "/////////////////////" << std::endl;
+    std::cout << std::endl;
 }
