@@ -15,6 +15,7 @@
 #include <chrono>
 #include <thread>
 #include <omp.h>
+#include <unordered_set>
 
 #include "graph.hpp"
 #include "message_queue.hpp"
@@ -42,7 +43,13 @@ public :
     void generateRWer();
 
     // RW を実行する関数
-    void executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr);
+    void executeRandomWalk(RandomWalker& RWer);
+
+    // executeRandomWalk で終了した RWer を処理する関数
+    void endRandomWalk(RandomWalker& RWer);
+
+    // 終了した RWer について, 経路情報からグラフデータにキャッシュを登録する関数
+    void checkRWer(RandomWalker& RWer);
 
     // メッセージ処理用の関数 (ポート番号毎)
     void procMessage(const uint16_t& port_num);
@@ -83,19 +90,21 @@ private :
 
     std::vector<std::thread> observer_thread_; 
     bool observer_flag_ = true;
+    bool parallel_flag_ = false;
+    bool surviving_over_MAX_div2_flag_ = false;
 
     // パラメタ (スレッド数)
     const uint32_t SEND_RECV_PORT = 8;
     const uint32_t SEND_PER_PORT = 1;
     const uint32_t RECV_PER_PORT = 1;
     const uint32_t PROC_MESSAGE_PER_PORT = 1;
-    const uint32_t GENERATE_RWER = 1;
+    const uint32_t GENERATE_RWER = 20;
 
     // パラメタ (メッセージ長)
     const uint32_t MESSAGE_MAX_LENGTH = 1450;
 
     // パラメタ (メッセージ終了判定)
-    const uint32_t MESSAGE_END = 1100200300;
+    const uint8_t MESSAGE_END = 100;
 
     // 送信先IP
     std::vector<std::string> worker_ip_all_ = {"10.58.60.3", "10.58.60.5", "10.58.60.6", "10.58.60.7", "10.58.60.8"};
@@ -152,7 +161,6 @@ inline ARWS::ARWS(const std::string& dir_path) {
         send_queue_[ip].getSize();
     }
 
-
     // 全てのスレッドを開始させる
     start();
 }
@@ -207,6 +215,10 @@ inline void ARWS::generateRWer() {
 
         std::cout << "start RW!" << std::endl;
 
+        // 並列処理への切り替えのためのフラグの初期化
+        parallel_flag_ = false;
+        surviving_over_MAX_div2_flag_ = false;
+
         // observer 起動
         observer_flag_ = true;
         observer_thread_.push_back(std::thread(&ARWS::observer, this));
@@ -217,41 +229,97 @@ inline void ARWS::generateRWer() {
 
         RW_manager_.init(number_of_my_vertices * number_of_RW_execution);
 
+        // debug 
+        std::cout << "number_of_my_vertices: " << number_of_my_vertices << std::endl;
+        std::cout << "number_of_RW_execution: " << number_of_RW_execution << std::endl;
+        std::cout << "hasVertex(33): " << graph_.hasVertex(33) << std::endl;
+        // std::cout << "hasCacheDegree(34): " << graph_.hasCacheDegree(34) << std::endl;
+        // std::cout << "hasCacheDegree(30): " << graph_.hasCacheDegree(30) << std::endl;
+        // std::cout << "hasCacheDegree(14): " << graph_.hasCacheDegree(14) << std::endl;
+        
+        // debug
+        std::cout << "thread num: " << omp_get_max_threads() << std::endl;
         uint32_t num_threads = GENERATE_RWER;
         omp_set_num_threads(num_threads);
+        std::cout << "thread num: " << omp_get_max_threads() << std::endl;
 
         measurement_.setStart();
 
-        // debug 
-        std::cout << number_of_my_vertices << std::endl;
-        std::cout << number_of_RW_execution << std::endl;
+        int now_i = 0;
+        for (int i = 0; i < number_of_RW_execution; i++) {
 
-        // uint32_t RWer_id = 0;
-        int j;
-        #pragma omp parallel for private(j) 
-        for (int i = 0; i < number_of_my_vertices; i++) {
+            for (int j = 0; j < number_of_my_vertices; j++) {
 
-            uint32_t node_id = my_vertices[i];
+                uint32_t node_id = my_vertices[j];
 
-            for (int j = 0; j < number_of_RW_execution; j++) {
+                // debug
+                // std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+                // for (int _ = 0; _ < 5; _++) std::cout << std::endl;
 
-                uint32_t RWer_id = i * number_of_RW_execution + j;
+                uint32_t RWer_id = i * number_of_my_vertices + j;
 
+                // debug
+                // std::cout << "RWer_id: " << RWer_id << std::endl;
+                
                 // 生成スピード調整
                 RW_manager_.lockWhileOver();
 
                 // RWer を生成
-                std::unique_ptr<RandomWalker> RWer_ptr = std::make_unique<RandomWalker>(RandomWalker(node_id, RWer_id, hostip_));
+                RandomWalker RWer = RandomWalker(node_id, graph_.getDegree(node_id), RWer_id, hostip_);
 
                 // 生成時刻を記録
                 RW_manager_.setStartTime(RWer_id);
 
                 // RW を実行 
-                executeRandomWalk(std::move(RWer_ptr));
+                executeRandomWalk(RWer);
 
                 // RWer_id++;
 
                 // std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+            }
+
+            if (parallel_flag_ == true) {
+                now_i = i;
+                break;
+            }
+        }
+
+        // 途中から並列処理
+        std::cout << "parallel!!" << std::endl;
+        int j;
+        #pragma omp parallel for private(j) 
+        for (int i = now_i + 1; i < number_of_RW_execution; i++) {
+
+            for (j = 0; j < number_of_my_vertices; j++) {
+
+                uint32_t node_id = my_vertices[j];
+
+                // debug
+                // std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+                // for (int _ = 0; _ < 5; _++) std::cout << std::endl;
+
+                uint32_t RWer_id = i * number_of_my_vertices + j;
+
+                // debug
+                // std::cout << "RWer_id: " << RWer_id << std::endl;
+                
+                // 生成スピード調整
+                RW_manager_.lockWhileOver();
+
+                // RWer を生成
+                RandomWalker RWer = RandomWalker(node_id, graph_.getDegree(node_id), RWer_id, hostip_);
+
+                // 生成時刻を記録
+                RW_manager_.setStartTime(RWer_id);
+
+                // RW を実行 
+                executeRandomWalk(RWer);
+
+                // RWer_id++;
+
+                // std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
             }
         }
 
@@ -261,58 +329,177 @@ inline void ARWS::generateRWer() {
     }
 }
 
-inline void ARWS::executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr) {
+inline void ARWS::executeRandomWalk(RandomWalker& RWer) {
 
     while (1) {
-        // 現在ノードの隣接ノード集合を入手
-        std::vector<uint32_t> adjacency_vertices = graph_.getAdjacencyVertices(RWer_ptr->getCurrentNode());
+        
+        uint32_t current_node = RWer.getCurrentNode(); // 現在頂点
 
-        // 次数
-        uint32_t degree = adjacency_vertices.size();
+        if (graph_.hasVertex(current_node)) { // 元グラフのデータを参照して RW
 
-        // RW を一歩進める
-        if (rand_double(mt) < RW_config_.getAlpha() || degree == 0) { // 確率 α もしくは次数 0 なら終了
+            // debug
+            // std::cout << "normalRW, path: ";
+            // {
+            //     uint32_t path_length = RWer.getPathLength();
+            //     uint32_t path[path_length*3]; // 経路情報 : 頂点, HostIP, 次数, 頂点, HostIP, 次数,...
+            //     RWer.getPath(path);
+            //     for (int i = 0; i < path_length; i++) {
+            //         std::cout << path[i*3] << " ";
+            //     }
+            //     std::cout << std::endl;
+            // }
 
-            RWer_ptr->endRWer();
-            uint32_t RWer_hostip = RWer_ptr->getHostip();
+            // 現在頂点の次数情報を RWer に入力
+            RWer.inputCurrentDegree(graph_.getDegree(current_node));
 
-            if (RWer_hostip == hostip_) { // もし終了した RWer の起点サーバが今いるサーバである場合, 終了した RWer をこの場で処理
-      
-                RW_manager_.setEndTime(RWer_ptr->getRWerId());
-      
-            } else { // そうでないなら send_queue に push
+            // RW を一歩進める
+            if (RWer.getPrevIp() != 0) { // 他のサーバから送られてきた && このサーバでの一歩目のとき
 
-                // std::uniform_int_distribution<int> rand_port(10000, 10000+SEND_RECV_PORT-1);
-                send_queue_[RWer_hostip].push(std::move(RWer_ptr));
+                std::uniform_int_distribution<int> rand_int(0, graph_.getDegree(current_node) - 1);
 
-            }
+                uint32_t next_node = graph_.getNextNode(current_node, rand_int(mt));
 
-            break;
+                int count = 0;
+                while (graph_.hasServerCacheEdge(RWer.getPrevIp(), current_node, next_node) && count < 10000) {
 
-        } else { // 確率 1-α でランダムな隣接ノードへ遷移
+                    next_node = graph_.getNextNode(current_node, rand_int(mt));
+                    count++;
 
-            // ランダムな隣接ノードへ遷移
-            std::uniform_int_distribution<int> rand_int(0, degree-1);
-            uint32_t next_node = adjacency_vertices[rand_int(mt)];
-            RWer_ptr->updateRWer(next_node);
-            uint32_t next_node_ip = graph_.getIP(next_node);
+                }
 
-            // 遷移先ノードの持ち主が自サーバか他サーバかで分類
-            if (next_node_ip == hostip_) { // 自サーバへの遷移
+                RWer.inputPrevIp(0);
 
-                continue;
+                RWer.updateRWer(next_node, graph_.getIP(next_node), 0);
 
-            } else { // 他サーバへの遷移 (メッセージを生成し, send_queue に push)
-
-                // std::uniform_int_distribution<int> rand_port(10000, 10000+SEND_RECV_PORT-1);
-                send_queue_[next_node_ip].push(std::move(RWer_ptr));
+            } else if (rand_double(mt) < RW_config_.getAlpha() || graph_.getDegree(current_node) == 0) { // 確率 α もしくは次数 0 なら終了
+                
+                // 終了した RWer の処理 
+                endRandomWalk(RWer);
 
                 break;
 
+            } else { // ランダムな隣接ノードへ遷移
+
+                std::uniform_int_distribution<int> rand_int(0, graph_.getDegree(current_node) - 1);
+
+                uint32_t next_node = graph_.getNextNode(current_node, rand_int(mt));
+
+                RWer.updateRWer(next_node, graph_.getIP(next_node), 0);
+            }
+
+        } else { // キャッシュデータを参照して RW
+
+            // debug
+            // std::cout << "cacheRW, path: ";
+            // {
+            //     uint32_t path_length = RWer.getPathLength();
+            //     uint32_t path[path_length*3]; // 経路情報 : 頂点, HostIP, 次数, 頂点, HostIP, 次数,...
+            //     RWer.getPath(path);
+            //     for (int i = 0; i < path_length; i++) {
+            //         std::cout << path[i*3] << " ";
+            //     }
+            //     std::cout << std::endl;
+            // }
+
+            // 現在頂点の次数情報があるか確認
+            if (!graph_.hasCacheDegree(current_node)) { // 次数情報がない (元グラフの他サーバ隣接ノード)
+                // debug
+                // std::cout << "motolinsetu" << std::endl; 
+
+                send_queue_[graph_.getIP(current_node)].push(RWer);
+
+                break;
+
+            } 
+
+            // debug
+            // std::cout << "cacheRW2, current_node: " << current_node << std::endl;
+        
+            // 必要な情報 (次数, 隣接リスト) をキャッシュからコピーして取ってくる (ロック削減のため)
+            uint32_t degree = graph_.getCacheDegree(current_node);
+            // std::vector<uint32_t> adjacency_list = graph_.getCacheAdjacencyList(current_node);
+
+            // 現在頂点の次数情報を RWer に入力
+            RWer.inputCurrentDegree(degree);
+
+            // RW を一歩進める
+            if (rand_double(mt) < RW_config_.getAlpha() || degree == 0) { // 確率 α もしくは次数 0 なら終了
+                
+                // 終了した RWer の処理 
+                endRandomWalk(RWer);
+
+                break;
+
+            } else { // ランダムな隣接ノードへ遷移
+
+                // 0 <= rand_idx < degree をランダム生成
+                std::uniform_int_distribution<int> rand_int(0, degree - 1);
+                uint32_t rand_idx = rand_int(mt);
+
+                if (rand_idx < graph_.getCacheAdjacencyListSize(current_node)) { // 隣接リストから遷移先を選択
+
+                    uint32_t next_node = graph_.getCacheNextNode(current_node, rand_idx);
+                    RWer.updateRWer(next_node, graph_.getCacheIP(next_node), 0);
+
+                } else { // 遷移先が不明のため送信
+
+                    send_queue_[graph_.getCacheIP(current_node)].push(RWer);
+
+                    break;
+
+                }    
             }
 
         }
     } 
+}
+
+inline void ARWS::endRandomWalk(RandomWalker& RWer) {
+    // debug
+    // std::cout << "endRandomWalk" << std::endl;
+
+    // RWer の終了フラグを立てる
+    RWer.endRWer();
+
+    if (RWer.getSendFlag() == 0) { // 送信が発生していない RWer は他のサーバに伝える必要がない
+
+        RW_manager_.setEndTime(RWer.getRWerId());
+
+    } else {
+        // RWer が通ってきたサーバの集合を入手
+        std::unordered_set<uint32_t> ip_set = RWer.getServerGroup();
+
+        // それぞれのサーバへ送信 (自分のサーバへは送信せずここで処理)
+        for (uint32_t ip : ip_set) {
+            if (ip == hostip_) {
+                checkRWer(RWer);
+            } else {
+                send_queue_[ip].push(RWer);
+            }
+        }
+    }
+
+    
+}
+
+inline void ARWS::checkRWer(RandomWalker& RWer) {
+    // RWer の起点サーバがここだったら終了時間記録
+    if (RWer.getHostip() == hostip_) {
+        RW_manager_.setEndTime(RWer.getRWerId());
+    }
+
+    // RWer が通ってきたサーバの集合を入手
+    std::unordered_set<uint32_t> ip_set = RWer.getServerGroup();
+
+    // RWer の経路情報を見てグラフデータをキャッシュに登録
+    uint32_t path_length = RWer.getPathLength();
+    uint32_t path[path_length*3]; // 経路情報 : 頂点, HostIP, 次数, 頂点, HostIP, 次数,...
+    RWer.getPath(path);
+    for (int i = 0; i < path_length-1; i++) {
+        // 両方向エッジをキャッシュに追加
+        graph_.addEdgeToCache(path[i*3], path[i*3+1], path[i*3+2], path[(i+1)*3], path[(i+1)*3 + 1], path[(i+1)*3 + 2], ip_set);
+        graph_.addEdgeToCache(path[(i+1)*3], path[(i+1)*3 + 1], path[(i+1)*3 + 2], path[i*3], path[i*3+1], path[i*3+2], ip_set);
+    }
 }
 
 inline void ARWS::procMessage(const uint16_t& port_num) {
@@ -320,16 +507,19 @@ inline void ARWS::procMessage(const uint16_t& port_num) {
 
     while (1) {
         // メッセージキューからメッセージを取得
-        std::unique_ptr<RandomWalker> RWer_ptr = receive_queue_[port_num].pop();
+        RandomWalker RWer = receive_queue_[port_num].pop();
 
-        if (RWer_ptr->getEndFlag() == 1) { // 終了した RWer の処理
+        // debug
+        // RWer.printRWer();
 
-            RW_manager_.setEndTime(RWer_ptr->getRWerId());
+        if (RWer.getEndFlag() == 1) { // 終了した RWer の処理
+
+            checkRWer(RWer);
 
         } else { // まだ生存している RWer の処理
 
             // RW を実行
-            executeRandomWalk(std::move(RWer_ptr));
+            executeRandomWalk(RWer);
 
         }
 
@@ -358,7 +548,7 @@ inline void ARWS::sendMessage(const uint32_t& dst_ip) {
         // std::cout << 100 << std::endl;
 
         // キューからRWerを取ってきてメッセージに詰める
-        uint32_t now_length = send_queue_[dst_ip].pop(message, MESSAGE_MAX_LENGTH);
+        uint32_t now_length = send_queue_[dst_ip].pop(message, MESSAGE_MAX_LENGTH, hostip_);
 
         // メッセージ終端の目印を書き込む
         memcpy(message + now_length, &MESSAGE_END, sizeof(MESSAGE_END));
@@ -400,10 +590,7 @@ inline void ARWS::receiveMessage(int sockfd, const uint16_t& port_num) {
         memset(message.get(), 0, MESSAGE_MAX_LENGTH + sizeof(MESSAGE_END));
         recv(sockfd, message.get(), MESSAGE_MAX_LENGTH + sizeof(MESSAGE_END), 0);
 
-        // // デバッグ
-        // std::cout << message.get() << std::endl;
-
-        uint32_t* message_id = (uint32_t*)(message.get());
+        uint8_t* message_id = (uint8_t*)(message.get());
 
         if (*message_id == 1) { // 実験開始の合図
 
@@ -420,6 +607,11 @@ inline void ARWS::receiveMessage(int sockfd, const uint16_t& port_num) {
             start_flag_.writeReady(true);
 
         } else if (*message_id == 2) { // RWer のメッセージ
+            // debug
+            // std::uniform_int_distribution<int> rand_int(0, 1000);
+            // std::this_thread::sleep_for(std::chrono::milliseconds(rand_int(mt)));
+            // std::cout << "message_id: 2" << std::endl;
+
             // RWer を一つずつ分ける
             uint32_t stream_length = 0;
 
@@ -427,15 +619,15 @@ inline void ARWS::receiveMessage(int sockfd, const uint16_t& port_num) {
                 if (*message_id == MESSAGE_END) break;
 
                 // std::unique_ptr<RandomWalker> RWer_ptr((RandomWalker*)(message.get() + stream_length));
-                std::unique_ptr<RandomWalker> RWer_ptr = std::make_unique<RandomWalker>(*((RandomWalker*)(message.get() + stream_length)));
+                RandomWalker RWer = *((RandomWalker*)(message.get() + stream_length));
 
-                uint32_t RWer_data_length = RWer_ptr->getSize();
+                uint32_t RWer_data_length = RWer.getSize();
 
                 // メッセージキューに push
-                receive_queue_[port_num].push(std::move(RWer_ptr));
+                receive_queue_[port_num].push(RWer);
 
                 stream_length += RWer_data_length;
-                message_id = (uint32_t*)(message.get() + stream_length); // 次の message_id を特定
+                message_id = (uint8_t*)(message.get() + stream_length); // 次の message_id を特定
             }
 
         } else if (*message_id == 3) { // 実験結果を送信
@@ -523,7 +715,7 @@ inline void ARWS::sendToStartManager() {
     std::cout << "end_count : " << end_count << std::endl;
     std::cout << "execution_time : " << execution_time << std::endl;
 
-    // デバッグ
+    // debug
     std::cout << "message_queue_size: " << receive_queue_.size() << std::endl;
     for (auto& [port, q] : receive_queue_) {
         std::cout << port << ": " << q.getSize() << std::endl;
@@ -532,6 +724,9 @@ inline void ARWS::sendToStartManager() {
     for (auto& [ip, q] : send_queue_) {
         std::cout << ip << ": " << q.getSize() << std::endl;   
     }
+    std::cout << "my edges num: " << graph_.getMyEdgeCount() << std::endl;
+    std::cout << "cache edges num: " << graph_.getCacheEdgeCount() << std::endl;
+    std::cout << "all edges: " << graph_.getMyEdgeCount() + graph_.getCacheEdgeCount() << std::endl;
 
     std::this_thread::sleep_for(std::chrono::seconds(5));
     {
@@ -566,12 +761,40 @@ inline void ARWS::sendToStartManager() {
     // RW Manager　のリセット
     RW_manager_.reset();
 
+    // キャッシュデータのリセット
+    graph_.reset();
+
     std::cout << "reset ok" << std::endl;
+
+    std::cout << "my edges num: " << graph_.getMyEdgeCount() << std::endl;
+    std::cout << "cache edges num: " << graph_.getCacheEdgeCount() << std::endl;
+    std::cout << "all edges: " << graph_.getMyEdgeCount() + graph_.getCacheEdgeCount() << std::endl;
 }
 
 inline void ARWS::observer() {
+    uint32_t max_threads_num = omp_get_max_threads();
+
     while (observer_flag_) {
+        if (RW_manager_.getSurvivingRWerNum() > RW_manager_.getMaxSurvivingRwer() / 2) {
+            surviving_over_MAX_div2_flag_ = true;
+        }
+
+        if (parallel_flag_ == false && surviving_over_MAX_div2_flag_ && RW_manager_.getSurvivingRWerNum() < max_threads_num) {
+            parallel_flag_ = true;
+
+            // debug
+            std::cout << "all edges: " << graph_.getMyEdgeCount() + graph_.getCacheEdgeCount() << std::endl;
+
+            // observer_flag_ = false;
+        }
+        // measurement_.setEnd();
+        // if (parallel_flag_ == false && measurement_.getExecutionTime() > 10) {
+        //     parallel_flag_ = true;
+        //     std::cout << "parallel!" << std::endl;
+        // }
+
         RW_manager_.printSurvivingRWerNum();
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 }
+
