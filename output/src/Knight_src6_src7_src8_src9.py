@@ -29,6 +29,10 @@ src6_list = []
 for i in range(6):
     src6_list.append('../src6_' + RW_num + '_RTT_' + str(20 * i) + '_loss_' + loss + '_time.txt')
 
+src7_list = []
+for i in range(6):
+    src7_list.append('../src7_' + RW_num + '_RTT_' + str(20 * i) + '_loss_' + loss + '_time.txt')
+
 src8_list = []
 for i in range(6):
     src8_list.append('../src8_' + RW_num + '_RTT_' + str(20 * i) + '_loss_' + loss + '_time.txt')
@@ -62,6 +66,10 @@ data_src6 = []
 for item in src6_list:
     data_src6.append(np.loadtxt(item, unpack=True))
 
+data_src7 = []
+for item in src7_list:
+    data_src7.append(np.loadtxt(item, unpack=True))
+
 data_src8 = []
 for item in src8_list:
     data_src8.append(np.loadtxt(item, unpack=True))
@@ -94,12 +102,17 @@ y5 = []
 for item in data_src9:
     y5.append(np.average(item))
 
+y6 = []
+for item in data_src7:
+    y6.append(np.average(item))
+
 
 ax1.plot(x, y1)
 ax1.plot(x, y2)
 ax1.plot(x, y3)
 ax1.plot(x, y4)
 ax1.plot(x, y5)
+ax1.plot(x, y6)
 
 ax1.set_ylim(0, 50)
 
@@ -112,13 +125,14 @@ ax1.plot(x, y2, label='KnightKing loss = 0.01')
 ax1.plot(x, y4, label='single RWer')
 ax1.plot(x, y3, label='port_queue')
 ax1.plot(x, y5, label='dst_queue')
+ax1.plot(x, y6, label='no send_queue')
 
 ax1.legend()
 
 ax1.set_xlabel('RTT (ms)', fontsize=14)
 ax1.set_ylabel('execution_time (sec)', fontsize=14)
 
-outname = '../picture/Knight_src6_src8_src9.pdf'
+outname = '../picture/Knight_src6_src7_src8_src9.pdf'
 
 fig.savefig(outname)
 

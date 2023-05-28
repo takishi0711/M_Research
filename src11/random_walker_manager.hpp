@@ -37,6 +37,12 @@ public :
     // surviving_RWer_の数を出力
     void printSurvivingRWerNum();
 
+    // surviving_RWer_の数を取得
+    uint32_t getSurvivingRWerNum();
+
+    // MAX_SURVIVING_RWER を取得
+    uint32_t getMaxSurvivingRwer();
+
 private :
     int32_t RWer_all_num_ = 0; // RWer の総数
     bool* end_flag_per_RWer_id_ = nullptr; // RWer_id に対する終了判定
@@ -126,4 +132,12 @@ inline void RandomWalkerManager::lockWhileOver() {
 
 inline void RandomWalkerManager::printSurvivingRWerNum() {
     std::cout << surviving_RWer_ << std::endl;
+}
+
+inline uint32_t RandomWalkerManager::getSurvivingRWerNum() {
+    return surviving_RWer_;
+}
+
+inline uint32_t RandomWalkerManager::getMaxSurvivingRwer() {
+    return MAX_SURVIVING_RWER;
 }
