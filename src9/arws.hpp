@@ -85,7 +85,7 @@ private :
     bool observer_flag_ = true;
 
     // パラメタ (スレッド数)
-    const uint32_t SEND_RECV_PORT = 8;
+    const uint32_t SEND_RECV_PORT = 16;
     const uint32_t SEND_PER_PORT = 1;
     const uint32_t RECV_PER_PORT = 1;
     const uint32_t PROC_MESSAGE_PER_PORT = 1;
@@ -238,7 +238,7 @@ inline void ARWS::generateRWer() {
                 uint32_t RWer_id = i * number_of_RW_execution + j;
 
                 // 生成スピード調整
-                RW_manager_.lockWhileOver();
+                // RW_manager_.lockWhileOver();
 
                 // RWer を生成
                 std::unique_ptr<RandomWalker> RWer_ptr = std::make_unique<RandomWalker>(RandomWalker(node_id, RWer_id, hostip_));

@@ -92,6 +92,7 @@ private :
     std::unordered_map<uint32_t, std::vector<uint32_t>> adjacency_list_; // 自サーバの隣接リスト {ノード ID : 隣接リスト}
     std::unordered_map<uint32_t, uint32_t> degree_; // 自サーバが持ち主となるノードの次数
 
+
     std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::unordered_set<uint32_t>>> servers_who_used_edge_; // エッジ (u, v) をキャッシュとして保存しているであろうサーバ集合 <u, <v, サーバ集合>>
 
     // キャッシュ情報

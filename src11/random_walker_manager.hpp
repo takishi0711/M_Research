@@ -54,7 +54,7 @@ private :
     std::condition_variable cv_surviving_RWer_;
 
     // パラメタ
-    const uint32_t MAX_SURVIVING_RWER = 1000;
+    const uint32_t MAX_SURVIVING_RWER = 500;
 
 };
 

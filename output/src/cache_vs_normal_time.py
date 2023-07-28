@@ -14,9 +14,12 @@ fc7 = '../cache_gen8000_time.txt'
 # fn2 = '../normal_gen250_time.txt'
 # fn3 = '../normal_gen500_time.txt'
 fn4 = '../normal_gen1000_time.txt'
-fn5 = '../normal_gen2000_time.txt'
-fn6 = '../normal_gen4000_time.txt'
-fn7 = '../normal_gen8000_time.txt'
+fn5 = '../normal_gen1500_time.txt'
+fn6 = '../normal_gen2000_time.txt'
+fn7 = '../normal_gen3000_time.txt'
+fn8 = '../normal_gen4000_time.txt'
+fn9 = '../normal_gen6000_time.txt'
+fn10 = '../normal_gen8000_time.txt'
 
 
 dc1 = np.loadtxt(fc1, unpack=True)
@@ -34,6 +37,9 @@ dn4 = np.loadtxt(fn4, unpack=True)
 dn5 = np.loadtxt(fn5, unpack=True)
 dn6 = np.loadtxt(fn6, unpack=True)
 dn7 = np.loadtxt(fn7, unpack=True)
+dn8 = np.loadtxt(fn8, unpack=True)
+dn9 = np.loadtxt(fn9, unpack=True)
+dn10 = np.loadtxt(fn10, unpack=True)
 
 
 fig = plt.figure()
@@ -41,10 +47,10 @@ fig = plt.figure()
 ax1 = fig.add_subplot(111)
 
 x1 = [100, 250, 500, 1000, 2000, 4000, 8000]
-x2 = [1000, 2000, 4000, 8000]
+x2 = [1000, 1500, 2000, 3000, 4000, 6000, 8000]
 
 y1 = [np.average(dc1), np.average(dc2), np.average(dc3), np.average(dc4), np.average(dc5), np.average(dc6), np.average(dc7)]
-y2 = [np.average(dn4), np.average(dn5), np.average(dn6), np.average(dn7)]
+y2 = [np.average(dn4), np.average(dn5), np.average(dn6), np.average(dn7), np.average(dn8), np.average(dn9), np.average(dn10)]
 
 ax1.plot(x1, y1, label='Reuse Path')
 ax1.plot(x2, y2, label='Normal')

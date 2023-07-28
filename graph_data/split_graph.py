@@ -6,8 +6,8 @@ ip = ["10.58.60.3", "10.58.60.5", "10.58.60.6", "10.58.60.7", "10.58.60.8"]
 name = ['abilene03', 'abilene05', 'abilene06', 'abilene07', 'abilene08']
 split_num = 5
 
-filename = "./source_data/ego_Facebook.txt"
-dir = "./ego_Facebook/"
+filename = "./source_data/LiveJournal.txt"
+dir = "./LiveJournal/"
 
 f = open(filename, 'r')
 
