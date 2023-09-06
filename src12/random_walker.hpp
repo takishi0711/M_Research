@@ -38,6 +38,9 @@ public :
     // 現在のノードを入手
     uint32_t getCurrentNode();
 
+    // 一歩前のノードを入手
+    uint32_t getPrevNode();
+
     // RWer の経路長を入手
     uint8_t getPathLength();
 
@@ -64,6 +67,9 @@ public :
 
     // index の set
     void setIndex(const uint32_t& index_num);
+
+    // 一歩前の v -> u の index を登録
+    void setPrevIndex(const uint32_t& index_num);
 
     // 現在の頂点の次数を入力
     void setCurrentDegree(const uint32_t& node_degree);
@@ -112,6 +118,14 @@ inline uint32_t RandomWalker::getCurrentNode() {
     return path_[(path_length_ - 1) * 5];
 }
 
+inline uint32_t RandomWalker::getPrevNode() {
+    if (path_length_ < 2) {
+        perror("getPrevNode");
+        exit(1); // 異常終了
+    }
+    return path_[(path_length_ - 2) * 5];
+}
+
 inline uint8_t RandomWalker::getPathLength() {
     return path_length_;
 }
@@ -148,6 +162,15 @@ inline void RandomWalker::updateRWer(const uint32_t& next_node, const uint32_t& 
 
 inline void RandomWalker::setIndex(const uint32_t& index_num) {
     next_index_ = index_num;
+}
+
+inline void RandomWalker::setPrevIndex(const uint32_t& index_num) {
+    if (path_length_ < 2) {
+        perror("setPrevIndex");
+        exit(1); // 異常終了
+    }
+
+    path_[(path_length_ - 2) * 5 + 4] = index_num;
 }
 
 inline void RandomWalker::endRWer() {

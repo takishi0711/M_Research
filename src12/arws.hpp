@@ -213,6 +213,9 @@ inline void ARWS::executeRandomWalk(RandomWalker& RWer) {
             // RW を一歩進める
             if (RWer.getSendFlag() == true) { // 他のサーバから送られてきた RWer
 
+                // current node -> prev node の index を登録
+                RWer.setPrevIndex(graph_.indexOfUV(current_node, RWer.getPrevNode()));
+
                 uint32_t next_node = graph_.getNextNode(current_node, RWer.getNextIndex());
 
                 RWer.updateRWer(next_node, graph_.getIP(next_node), 0, RWer.getNextIndex(), graph_.indexOfUV(next_node, current_node));
