@@ -17,7 +17,7 @@
 // メッセージ ID について, 0 -> 生存した RWer, 1 -> 終了した RWer, 2 -> 複数の RWer が入っているパケット, 3 -> 実験開始の合図, 4 -> 実験終了の合図
 // 
 // flag_ (8bit): 
-// 一歩前で通信が発生したか: 1bit, 現在の頂点の同HostID内の経路長が 1 なのかどうか: 1bit, あまり : 6bit
+// 一歩前で通信が発生したか: 1bit, あまり : 7bit
 // 
 // RWer_size_ (16bit):
 // RWer 単体のメモリサイズ
@@ -48,13 +48,13 @@ public :
 
     // コンストラクタ
     RandomWalker();
-    RandomWalker(const uint64_t& source_node, const uint64_t& node_degree, const uint32_t& RWer_id, const uint64_t& HostID);
+    RandomWalker(const uint32_t& source_node, const uint32_t& node_degree, const uint32_t& RWer_id, const uint32_t& HostID);
 
     // メッセージIDを入れる
-    void inputMessageID(const uint8_t& id);
+    void inputMessageID();
 
     // メッセージID取得
-    uint8_t getMessageID();
+    uint8_t getMessageId();
 
     // RWer を終了させる
     void endRWer();
@@ -62,32 +62,20 @@ public :
     // RWer が終了しているかどうか (true: 終了, false: 生存)
     bool isEnd();
 
-    // 通信が発生したときに flag を入れる
+    // 通信が発生したときに send_flag_ に bool を入れる
     void inputSendFlag(bool flag); 
 
     // 一歩前で通信が発生したか (true: した, false: してない)
     bool isSended();
 
-    // 現在の頂点の同HostID内の経路長が 1 なのかどうか (true: 1, false: 1 じゃない)
-    void inputLengthOneFlag(bool flag); 
-
-    // 現在の頂点の同HostID内の経路長が 1 なのかどうか (true: 1, false: 1 じゃない)
-    bool isLengthOneInHost();
-
-    // RWer のサイズを入手 (Byte 単位)
-    uint32_t getRWerSize();
-
-    // RWer_life を入力 (RWer の指定歩数, 寿命)
-    void inputRWerLife(const uint16_t& life);
-
-    // RWer_life を入手
-    uint16_t getRWerLife();
-
     // RWer の経路長を入手
     uint8_t getPathLength();
 
     // RWer の ID を入手
-    uint32_t getRWerID();
+    uint32_t getRWerId();
+
+    // サーバ内経路長の配列の末端 index
+    uint32_t getLastIndexOfServerPathLength();
 
     // path_ の次の index の位置 (頂点を入れる場所) を入手
     uint32_t getNextIndexOfPath();
@@ -107,6 +95,12 @@ public :
     // 起点サーバの IP アドレスを入手
     uint64_t getHostID();
 
+    // RWer のサイズを取得 (Byte 単位)
+    uint32_t getSize();
+
+    // path_ 配列の長さを返す
+    uint32_t getPathArraySize();
+
     // 通信が発生した時の次の遷移先 index を入力
     void setIndex(const uint64_t& index_num);
 
@@ -114,7 +108,7 @@ public :
     uint64_t getNextIndex();
 
     // RWer の現在ノードを更新
-    void updateRWer(const uint64_t& next_node, const uint64_t& host_id, const uint64_t& node_degree, const uint64_t& index_uv, const uint64_t& index_vu);
+    void updateRWer(const uint64_t& next_node, const uint64_t& node_ip, const uint64_t& node_degree, const uint64_t& index_uv, const uint64_t& index_vu);
 
     // 一歩前の v -> u の index を登録
     void setPrevIndex(const uint64_t& index_num);
@@ -145,76 +139,76 @@ private :
 //////////////////////////////////////////////////////////////////////////
 
 inline RandomWalker::RandomWalker() {
-    inputMessageID(ALIVE);
+    inputMessageID();
 }
 
-inline RandomWalker::RandomWalker(const uint64_t& source_node, const uint64_t& node_degree, const uint32_t& RWer_id, const uint64_t& HostID) {
-    inputMessageID(ALIVE);
-    path_length_ = 1;
+inline RandomWalker::RandomWalker(const uint32_t& source_node, const uint32_t& node_degree, const uint32_t& RWer_id, const uint32_t& HostID) {
+    inputMessageID();
     RWer_id_ = RWer_id;
-    path_[0] = (HostID<<16); // HostID 入力
-    path_[0] |= 1; // 同HostID内の経路長入力
+    path_length_ = 1;
+    path_[0] = HostID;
     path_[1] = source_node;
     path_[2] = node_degree;
 }
 
-inline void RandomWalker::inputMessageID(const uint8_t& id) {
-    ver_id_ |= id;
+inline void RandomWalker::inputMessageID() {
+    id_flag_ |= (1<<7);
 }
 
-inline uint8_t RandomWalker::getMessageID() {
-    return ver_id_ & BIT_FLAG_MESSEGEID;
+inline uint8_t RandomWalker::getMessageId() {
+    return id_flag_ >> 6;
 }
 
 inline void RandomWalker::endRWer() {
-    inputMessageID(DEAD);
+    id_flag_ |= (1<<5);
 }
 
 inline bool RandomWalker::isEnd() {
-    return getMessageID() == DEAD;
+    return (id_flag_>>5)&1;
 }
 
 inline void RandomWalker::inputSendFlag(bool flag) {
-    flag_ &= ~(1<<7);
-    flag_ |= (flag<<7);
+    id_flag_ |= (1<<4);
 }
 
 inline bool RandomWalker::isSended() {
-    return (flag_>>7)&1;
-}
-
-inline void RandomWalker::inputLengthOneFlag(bool flag) {
-    flag_ &= ~(1<<6);
-    flag_ |= (flag<<6);
-}
-
-inline bool RandomWalker::isLengthOneInHost() {
-    return (flag_>>6)&1;
-}
-
-inline uint32_t RandomWalker::getRWerSize() {
-    return RWer_size_;
+    return (id_flag_>>4)&1;
 }
 
 inline uint8_t RandomWalker::getPathLength() {
     return path_length_;
 }
 
-inline void RandomWalker::inputRWerLife(const uint16_t& life) {
-    RWer_life_ = life;
-}
-
-inline uint16_t RandomWalker::getRWerLife() {
-    return RWer_life_;
-}
-
-inline uint32_t RandomWalker::getRWerID() {
+inline uint32_t RandomWalker::getRWerId() {
     return RWer_id_;
 }
 
+inline uint32_t RandomWalker::getLastIndexOfServerPathLength() {
+    uint32_t return_idx = 0;
+    for (int i = 0; i < MAX_PATH_LENGTH; i++) {
+        if (server_path_length_[i] == 0) break;
+        return_idx = i;
+    }
+    return return_idx;
+}
+
 inline uint32_t RandomWalker::getNextIndexOfPath() {
-    // RWer_size_ から逆算
-    return (RWer_size_ - 8 - 8 - 8) / 8;
+    uint8_t now_length = path_length_;
+    uint32_t return_idx = 0;
+    uint32_t server_idx = 0;
+    while (now_length) {
+        if (now_length - server_path_length_[server_idx] <= 0) {
+            return_idx++; // HostID
+            return_idx += 4*now_length; 
+            break;
+        }
+
+        return_idx++; // HostID
+        return_idx += 4*server_path_length_[server_idx];
+        now_length -= server_path_length_[server_idx];
+        server_idx++;
+    }
+    return return_idx;
 }
 
 inline uint32_t RandomWalker::getCurrentIndexOfPath() {
@@ -231,7 +225,9 @@ inline uint32_t RandomWalker::getPrevIndexOfPath() {
         exit(1); // 異常終了
     }
 
-    if (isLengthOneInHost()) { // current_node が今のサーバで一歩目のとき, 先頭に HostID が入っている
+    uint32_t last_server_path_length = server_path_length_[getLastIndexOfServerPathLength()];
+
+    if (last_server_path_length == 1) { // current_node が今のサーバで一歩目のとき, 先頭に HostID が入っている
         return getNextIndexOfPath() - (4 + 1 + 4);
     } else {
         return getNextIndexOfPath() - (4 + 4);
@@ -243,7 +239,21 @@ inline uint64_t RandomWalker::getPrevNode() {
 }
 
 inline uint64_t RandomWalker::getHostID() {
-    return path_[0]>>16;
+    return path_[0];
+}
+
+inline uint32_t RandomWalker::getSize() {
+    return 1 + 1 + 4 + 8 + 1*MAX_PATH_LENGTH + 8*getPathArraySize();
+}
+
+inline uint32_t RandomWalker::getPathArraySize() {
+    uint32_t path_array_size = 0;
+    for (int i = 0; i < MAX_PATH_LENGTH; i++) {
+        if (server_path_length_[i] == 0) break;
+        path_array_size += 1; // HostID
+        path_array_size += 4*server_path_length_[i];
+    }
+    return path_array_size;
 }
 
 inline void RandomWalker::setIndex(const uint64_t& index_num) {
@@ -254,16 +264,15 @@ inline uint64_t RandomWalker::getNextIndex() {
     return next_index_;
 }
 
-inline void RandomWalker::updateRWer(const uint64_t& next_node, const uint64_t& host_id, const uint64_t& node_degree, const uint64_t& index_uv, const uint64_t& index_vu) {
+inline void RandomWalker::updateRWer(const uint64_t& next_node, const uint64_t& node_ip, const uint64_t& node_degree, const uint64_t& index_uv, const uint64_t& index_vu) {
     uint32_t start_index = getNextIndexOfPath();
     if (isSended()) {
-        path_[4] |= (1<<path_length_); // 通信が発生した遷移を記録
-        path_[start_index] = (host_id<<16); // HostID 入力
-        inputSendFlag(false);
-    } 
-
-    uint16_t now_length_in_host = 
-
+        path_[4] |= (1<<path_length_);
+        path_[start_index++] = node_ip;
+        server_path_length_[getLastIndexOfServerPathLength() + 1]++;
+    } else {
+        server_path_length_[getLastIndexOfServerPathLength()]++;
+    }
     path_[start_index++] = next_node;
     path_[start_index++] = node_degree;
     path_[start_index++] = index_uv;
