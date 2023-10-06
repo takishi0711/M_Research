@@ -86,7 +86,6 @@ private :
 
     // 乱数関連
     std::mt19937 mt{std::random_device{}()}; // メルセンヌ・ツイスタを用いた乱数生成
-    std::uniform_real_distribution<double>  rand_double{0, 1.0}; // 0~1のランダムな値
 
 };
 
@@ -182,7 +181,7 @@ inline void ARWS::generateRWer() {
                 RW_manager_.lockWhileOver();
 
                 // RWer を生成
-                RandomWalker RWer = RandomWalker(node_id, graph_.getDegree(node_id), RWer_id, hostip_);
+                RandomWalker RWer = RandomWalker(node_id, graph_.getDegree(node_id), RWer_id, hostip_, RW_config_.getRWerLife());
 
                 // 生成時刻を記録
                 RW_manager_.setStartTime(RWer_id);
@@ -211,7 +210,7 @@ inline void ARWS::executeRandomWalk(RandomWalker& RWer) {
             RWer.setCurrentDegree(graph_.getDegree(current_node));
 
             // RW を一歩進める
-            if (RWer.getSendFlag() == true) { // 他のサーバから送られてきた RWer
+            if (RWer.isSended() == true) { // 他のサーバから送られてきた RWer
 
                 // current node -> prev node の index を登録
                 RWer.setPrevIndex(graph_.indexOfUV(current_node, RWer.getPrevNode()));
@@ -220,7 +219,7 @@ inline void ARWS::executeRandomWalk(RandomWalker& RWer) {
 
                 RWer.updateRWer(next_node, graph_.getIP(next_node), 0, RWer.getNextIndex(), graph_.indexOfUV(next_node, current_node));
 
-            } else if (rand_double(mt) < RW_config_.getAlpha() || graph_.getDegree(current_node) == 0) { // 確率 α もしくは次数 0 なら終了
+            } else if (RWer.isEnd() || graph_.getDegree(current_node) == 0) { // 寿命切れ もしくは次数 0 なら終了
 
                 // 終了した RWer の処理 
                 endRandomWalk(RWer);
@@ -257,7 +256,7 @@ inline void ARWS::executeRandomWalk(RandomWalker& RWer) {
             RWer.setCurrentDegree(degree);
 
             // RW を一歩進める
-            if (rand_double(mt) < RW_config_.getAlpha() || degree == 0) { // 確率 α もしくは次数 0 なら終了
+            if (RWer.isEnd() || degree == 0) { // 寿命切れ もしくは次数 0 なら終了
 
                 // 終了した RWer の処理
                 endRandomWalk(RWer);
@@ -275,7 +274,7 @@ inline void ARWS::executeRandomWalk(RandomWalker& RWer) {
                 if (next_node == INF) { // index が存在してなかった場合は index とともに送信
 
                     RWer.setIndex(rand_idx);
-                    RWer.setSendFlag(1);
+                    RWer.inputSendFlag(true);
                     send_queue_[cache_.getIP(current_node)].push(RWer);
 
                     break;
@@ -292,14 +291,11 @@ inline void ARWS::executeRandomWalk(RandomWalker& RWer) {
 }
 
 inline void ARWS::endRandomWalk(RandomWalker& RWer) {
-    // RWer の終了フラグを立てる
-    RWer.endRWer();
-
     // RWer が通ってきたサーバの集合を入手
-    std::unordered_set<uint32_t> ip_set = RWer.getServerGroup();
+    std::unordered_set<uint64_t> ip_set = RWer.getHostGroup();
 
     // それぞれのサーバへ送信 (自分のサーバへは送信せずここで処理)
-    for (uint32_t ip : ip_set) {
+    for (uint64_t ip : ip_set) {
         if (ip == hostip_) {
             checkRWer(RWer);
         } else {
@@ -310,8 +306,8 @@ inline void ARWS::endRandomWalk(RandomWalker& RWer) {
 
 inline void ARWS::checkRWer(RandomWalker& RWer) {
     // RWer の起点サーバがここだったら終了時間記録
-    if (RWer.getHostip() == hostip_) {
-        RW_manager_.setEndTime(RWer.getRWerId());
+    if (RWer.getHostID() == hostip_) {
+        RW_manager_.setEndTime(RWer.getRWerID());
     }
 
     // RWer の経路情報をキャッシュに登録
@@ -328,7 +324,7 @@ inline void ARWS::procMessage(const uint16_t& port_num) {
         // debug
         // RWer.printRWer();
 
-        if (RWer.getEndFlag() == 1) { // 終了した RWer の処理
+        if (RWer.isEnd()) { // 終了した RWer の処理
 
             checkRWer(RWer);
 

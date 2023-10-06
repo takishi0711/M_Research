@@ -3,8 +3,8 @@
 #include <iostream>
 
 // ver_id_ のマスク
-const uint32_t BIT_FLAG_VER = (1<<7) + (1<<6) + (1<<5) + (1<<4);
-const uint32_t BIT_FLAG_MESSEGEID = (1<<3) + (1<<2) + (1<<1) + (1<<0);
+const uint32_t MASK_VER = (1<<7) + (1<<6) + (1<<5) + (1<<4);
+const uint32_t MASK_MESSEGEID = (1<<3) + (1<<2) + (1<<1) + (1<<0);
 
 // message_id_ の値
 const uint32_t ALIVE = 0;

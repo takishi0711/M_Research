@@ -17,19 +17,19 @@
 // メッセージ ID について, 0 -> 生存した RWer, 1 -> 終了した RWer, 2 -> 複数の RWer が入っているパケット, 3 -> 実験開始の合図, 4 -> 実験終了の合図
 // 
 // flag_ (8bit): 
-// 一歩前で通信が発生したか: 1bit, 現在の頂点の同HostID内の経路長が 1 なのかどうか: 1bit, あまり : 6bit
+// 一歩前で通信が発生したか: 1bit, あまり : 7bit
 // 
 // RWer_size_ (16bit):
 // RWer 単体のメモリサイズ
-// 
-// path_length_ (16bit):
-// RWer の現在の経路長
-// 
-// RWer_life_ (16bit):
-// RWer の残り歩数
 //
 // RWer_id_ (32bit):
+//
+// RWer_life_ (16bit):
+// RWer の残り歩数
 // 
+// path_length_in_Host_ (16bit):
+// RWer の現在の同一ホスト内の経路長
+//
 // reserved_ (32bit):
 // 予備
 // 
@@ -38,8 +38,7 @@
 //
 // path_[MAX_PATH_LENGTH*5] (64bit * MAX_PATH_LENGTH*5):
 // 経路情報
-// {HostID(48bit) + 同HostID内の経路長(16bit)}, {頂点(64bit), 次数(64bit), u->v の index(64bit), v->u の index(64bit), 頂点, 次数, ...}, {HostID(48bit) + 同HostID内の経路長(16bit)}, ...
-// 1 頂点目の index 部分は通信が発生した遷移をbitで管理するスペースに (0 : 発生してない, 1 : 発生)
+// {HostID(48bit) + 同HostID内の経路長(15bit) + 通信が発生したか(1bit)}, {頂点(64bit), 次数(64bit), u->v の index(64bit), v->u の index(64bit), 頂点, 次数, ...}, {HostID(48bit) + 同HostID内の経路長(15bit) + 通信が発生したか(1bit)}, ...
 
 
 struct RandomWalker {
@@ -48,7 +47,7 @@ public :
 
     // コンストラクタ
     RandomWalker();
-    RandomWalker(const uint64_t& source_node, const uint64_t& node_degree, const uint32_t& RWer_id, const uint64_t& HostID);
+    RandomWalker(const uint64_t& source_node, const uint64_t& node_degree, const uint32_t& RWer_id, const uint64_t& HostID, const uint32_t& RWer_life);
 
     // メッセージIDを入れる
     void inputMessageID(const uint8_t& id);
@@ -67,12 +66,6 @@ public :
 
     // 一歩前で通信が発生したか (true: した, false: してない)
     bool isSended();
-
-    // 現在の頂点の同HostID内の経路長が 1 なのかどうか (true: 1, false: 1 じゃない)
-    void inputLengthOneFlag(bool flag); 
-
-    // 現在の頂点の同HostID内の経路長が 1 なのかどうか (true: 1, false: 1 じゃない)
-    bool isLengthOneInHost();
 
     // RWer のサイズを入手 (Byte 単位)
     uint32_t getRWerSize();
@@ -97,6 +90,12 @@ public :
 
     // 現在のノードを入手
     uint64_t getCurrentNode();
+
+    // 現在の Host index を入手
+    uint64_t getCurrentHostIndex();
+
+    // 現在のノードの HostID を入手
+    uint64_t getCurrentNodeHostID();
 
     // 一歩前のノードの path_ の index を入手
     uint32_t getPrevIndexOfPath();
@@ -123,7 +122,7 @@ public :
     void setCurrentDegree(const uint64_t& node_degree);
 
     // 通ってきたサーバ集合 (IPアドレス) を入手
-    std::unordered_set<uint32_t> getServerGroup();
+    std::unordered_set<uint64_t> getHostGroup();
 
 
 private :
@@ -131,9 +130,9 @@ private :
     uint8_t ver_id_ = 0; 
     uint8_t flag_ = 0;
     uint16_t RWer_size_ = 0;
-    uint16_t path_length_ = 0; 
-    uint16_t RWer_life_ = 0; 
     uint32_t RWer_id_ = 0;    
+    uint16_t RWer_life_ = 0; 
+    uint16_t path_length_in_Host_ = 0; 
     uint32_t reserved_ = 0; 
     uint64_t next_index_ = 0;
     uint64_t path_[MAX_PATH_LENGTH*5]; 
@@ -148,12 +147,12 @@ inline RandomWalker::RandomWalker() {
     inputMessageID(ALIVE);
 }
 
-inline RandomWalker::RandomWalker(const uint64_t& source_node, const uint64_t& node_degree, const uint32_t& RWer_id, const uint64_t& HostID) {
+inline RandomWalker::RandomWalker(const uint64_t& source_node, const uint64_t& node_degree, const uint32_t& RWer_id, const uint64_t& HostID, const uint32_t& RWer_life) {
     inputMessageID(ALIVE);
-    path_length_ = 1;
+    path_length_in_Host_ = 1;
     RWer_id_ = RWer_id;
-    path_[0] = (HostID<<16); // HostID 入力
-    path_[0] |= 1; // 同HostID内の経路長入力
+    RWer_life_ = RWer_life;
+    path_[0] = (HostID<<16) + (1<<1) + 1; // HostID, 同HostID内の経路長入力 (終了した後最初のホストには送信するので, 送信フラグを入れておく)
     path_[1] = source_node;
     path_[2] = node_degree;
 }
@@ -163,7 +162,7 @@ inline void RandomWalker::inputMessageID(const uint8_t& id) {
 }
 
 inline uint8_t RandomWalker::getMessageID() {
-    return ver_id_ & BIT_FLAG_MESSEGEID;
+    return ver_id_ & MASK_MESSEGEID;
 }
 
 inline void RandomWalker::endRWer() {
@@ -183,21 +182,13 @@ inline bool RandomWalker::isSended() {
     return (flag_>>7)&1;
 }
 
-inline void RandomWalker::inputLengthOneFlag(bool flag) {
-    flag_ &= ~(1<<6);
-    flag_ |= (flag<<6);
-}
-
-inline bool RandomWalker::isLengthOneInHost() {
-    return (flag_>>6)&1;
-}
 
 inline uint32_t RandomWalker::getRWerSize() {
     return RWer_size_;
 }
 
 inline uint8_t RandomWalker::getPathLength() {
-    return path_length_;
+    return path_length_in_Host_;
 }
 
 inline void RandomWalker::inputRWerLife(const uint16_t& life) {
@@ -225,17 +216,25 @@ inline uint64_t RandomWalker::getCurrentNode() {
     return path_[getCurrentIndexOfPath()];
 }
 
+inline uint64_t RandomWalker::getCurrentHostIndex() {
+    return getCurrentIndexOfPath() - (4*(path_length_in_Host_ - 1) + 1);
+}
+
+inline uint64_t RandomWalker::getCurrentNodeHostID() {
+    return path_[getCurrentHostIndex()]>>16;
+}
+
 inline uint32_t RandomWalker::getPrevIndexOfPath() {
-    if (path_length_ < 2) {
+    uint32_t prev_index;
+    if (path_length_in_Host_ == 1) prev_index = getNextIndexOfPath() - (4 + 1 + 4);
+    else prev_index = getNextIndexOfPath() - (4 + 1 + 4);
+
+    if (prev_index < 0) {
         perror("getPrevNode");
         exit(1); // 異常終了
     }
 
-    if (isLengthOneInHost()) { // current_node が今のサーバで一歩目のとき, 先頭に HostID が入っている
-        return getNextIndexOfPath() - (4 + 1 + 4);
-    } else {
-        return getNextIndexOfPath() - (4 + 4);
-    }
+    return prev_index;
 }
 
 inline uint64_t RandomWalker::getPrevNode() {
@@ -256,45 +255,51 @@ inline uint64_t RandomWalker::getNextIndex() {
 
 inline void RandomWalker::updateRWer(const uint64_t& next_node, const uint64_t& host_id, const uint64_t& node_degree, const uint64_t& index_uv, const uint64_t& index_vu) {
     uint32_t start_index = getNextIndexOfPath();
+    if (getCurrentNodeHostID() != host_id) {
+        path_[start_index++] = (host_id<<16); // HostID 入力
+        path_length_in_Host_ = 0;
+    }
     if (isSended()) {
-        path_[4] |= (1<<path_length_); // 通信が発生した遷移を記録
-        path_[start_index] = (host_id<<16); // HostID 入力
+        path_[getCurrentHostIndex()] |= 1; // 送信フラグを立てる
         inputSendFlag(false);
     } 
-
-    uint16_t now_length_in_host = 
 
     path_[start_index++] = next_node;
     path_[start_index++] = node_degree;
     path_[start_index++] = index_uv;
     path_[start_index++] = index_vu;
-    if (path_length_ < MAX_PATH_LENGTH - 1) path_length_++;
+    
+    if (path_length_in_Host_ < MAX_PATH_LENGTH - 1) path_length_in_Host_++;
+    path_[getCurrentHostIndex()] += (1<<1);
+
+    RWer_life_--;
+    if (RWer_life_ == 0) endRWer();
 }
 
 inline void RandomWalker::setPrevIndex(const uint64_t& index_num) {
-    if (path_length_ < 2) {
+    uint32_t prev_index = getPrevIndexOfPath();
+    if (prev_index < 0) {
         perror("setPrevIndex");
         exit(1); // 異常終了
     }
 
-    path_[getPrevIndexOfPath() + 3] = index_num;
+    path_[prev_index + 3] = index_num;
 }
 
 inline void RandomWalker::setCurrentDegree(const uint64_t& node_degree) {
     path_[getCurrentIndexOfPath() + 1] = node_degree;
 }
 
-inline std::unordered_set<uint32_t> RandomWalker::getServerGroup() {
-    std::unordered_set<uint32_t> ip_set;
-    uint32_t now_path_array_index = 0;
-    uint32_t now_path_index = 0;
-    for (int i = 0; i < MAX_PATH_LENGTH; i++) {
-        if (server_path_length_[i] == 0) break;
-
-        uint64_t server_id = path_[now_path_array_index++];
-        for (int j = 0; j < server_path_length_[i]; j++) {
-            if ((path_[4]>>now_path_index++)&1) ip_set.insert(server_id);
-        }
+inline std::unordered_set<uint64_t> RandomWalker::getHostGroup() {
+    std::unordered_set<uint64_t> host_set;
+    uint32_t host_index = 0;
+    uint32_t last_index_ = getNextIndexOfPath();
+    while (1) {
+        if (host_index == last_index_) break;
+        uint64_t host_id = path_[host_index]>>16;
+        host_set.insert(host_id);
+        uint16_t path_length_ = (path_[host_index] & ~((host_id)<<16))>>1;
+        host_index += 4 * path_length_ + 1;
     }
-    return ip_set;
+    return host_set;
 }
