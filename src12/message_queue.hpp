@@ -19,13 +19,13 @@ struct MessageQueue {
 
 public :
 
-    void push(T& message) {
+    void push(std::unique_ptr<T>&& message) {
         { // 排他制御
             std::lock_guard<std::mutex> lk(mtx_message_queue_);
 
             bool queue_empty = message_queue_.empty();
 
-            message_queue_.push(message);
+            message_queue_.push(std::move(message));
 
             if (queue_empty) { // 空キューでなくなった通知
                 cv_message_queue_.notify_all();
@@ -35,7 +35,7 @@ public :
     }
 
     // message_queue_ からメッセージを取り出す
-    T pop() {
+    std::unique_ptr<T> pop() {
         { // 排他制御
             std::unique_lock<std::mutex> lk(mtx_message_queue_);
 
@@ -45,7 +45,7 @@ public :
             // // デバッグ
             // std::cout << "queue size: " << message_queue_.size() << std::endl;
 
-            T message = message_queue_.front();
+            std::unique_ptr<T> message = std::move(message_queue_.front());
 
             // // デバッグ
             // std::cout << "pop: " << message.get() << std::endl;
@@ -58,7 +58,7 @@ public :
 
     // message_queue_ からメッセージをまとめて取り出す (RWer 用、送信先毎の送信キュー)
     // メッセージ長を返す
-    uint32_t pop(char* message, const uint32_t& MESSAGE_MAX_LENGTH, const uint32_t& hostip) {
+    uint32_t pop(char* message, const uint32_t& MESSAGE_MAX_LENGTH, const uint32_t& hostip, uint16_t& RWer_count) {
         { // 排他制御
             std::unique_lock<std::mutex> lk(mtx_message_queue_);
 
@@ -69,12 +69,12 @@ public :
 
             while (message_queue_.size()) {
 
-                RandomWalker RWer = message_queue_.front();
+                std::unique_ptr<RandomWalker> RWer_ptr = std::move(message_queue_.front());
 
                 message_queue_.pop();
 
                 // RWer データサイズ
-                uint32_t RWer_data_length = RWer.getSize();
+                uint32_t RWer_data_length = RWer_ptr->getRWerSize();
 
                 if (now_length + RWer_data_length >= MESSAGE_MAX_LENGTH) { // メッセージに収まりきらなくなったら終了
                     message_queue_.push(RWer);
@@ -82,7 +82,8 @@ public :
                 }
 
                 // RWerの中身をメッセージに詰める
-                memcpy(message + now_length, &RWer, RWer_data_length);
+                // memcpy(message + now_length, &RWer, RWer_data_length);
+                RWer_ptr->writeMessage(message + now_length);
                 now_length += RWer_data_length;
             }
 
@@ -101,7 +102,7 @@ public :
 
 private :
 
-    std::queue<T> message_queue_;
+    std::queue<std::unique_ptr<T>> message_queue_;
     std::mutex mtx_message_queue_;
     std::condition_variable cv_message_queue_; 
 

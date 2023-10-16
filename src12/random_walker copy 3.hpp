@@ -36,7 +36,7 @@
 // next_index_ (64bit):
 // 通信が発生した時の次の遷移先 index
 //
-// path_ (64bit の可変長配列):
+// path_[MAX_PATH_LENGTH*5] (64bit * MAX_PATH_LENGTH*5):
 // 経路情報
 // {HostID(48bit) + 同HostID内の経路長(15bit) + 通信が発生したか(1bit)}, {頂点(64bit), 次数(64bit), u->v の index(64bit), v->u の index(64bit), 頂点, 次数, ...}, {HostID(48bit) + 同HostID内の経路長(15bit) + 通信が発生したか(1bit)}, ...
 
@@ -48,7 +48,6 @@ public :
     // コンストラクタ
     RandomWalker();
     RandomWalker(const uint64_t& source_node, const uint64_t& node_degree, const uint32_t& RWer_id, const uint64_t& HostID, const uint32_t& RWer_life);
-    RandomWalker(const char* message); // メッセージから RWer 復元
 
     // メッセージIDを入れる
     void inputMessageID(const uint8_t& id);
@@ -125,12 +124,6 @@ public :
     // 通ってきたサーバ集合 (IPアドレス) を入手
     std::unordered_set<uint64_t> getHostGroup();
 
-    // path_ のメモリ確保のためのサイズを現在の RWer_size と RWer_life から算出
-    uint16_t getRequiredPathSize();
-
-    // RWer のデータを書き込む
-    void writeMessage(char* message);
-
 
 private :
 
@@ -142,7 +135,7 @@ private :
     uint16_t path_length_in_Host_ = 0; 
     uint32_t reserved_ = 0; 
     uint64_t next_index_ = 0;
-    std::vector<uint64_t> path_;
+    uint64_t path_[MAX_PATH_LENGTH*5]; 
 
 };
 
@@ -156,32 +149,12 @@ inline RandomWalker::RandomWalker() {
 
 inline RandomWalker::RandomWalker(const uint64_t& source_node, const uint64_t& node_degree, const uint32_t& RWer_id, const uint64_t& HostID, const uint32_t& RWer_life) {
     inputMessageID(ALIVE);
-    RWer_size_ = 8 + 8 + 8;
     path_length_in_Host_ = 1;
     RWer_id_ = RWer_id;
     RWer_life_ = RWer_life;
-    path_.resize(getRequiredPathSize());
     path_[0] = (HostID<<16) + (1<<1) + 1; // HostID, 同HostID内の経路長入力 (終了した後最初のホストには送信するので, 送信フラグを入れておく)
     path_[1] = source_node;
     path_[2] = node_degree;
-}
-
-inline RandomWalker::RandomWalker(const char* message) {
-    int idx = 0;
-    ver_id_ = *(uint8_t*)(message[idx]); idx += 1;
-    flag_ = *(uint8_t*)(message[idx]); idx += 1;
-    RWer_size_ = *(uint16_t*)(message[idx]); idx += 2;
-    RWer_id_ = *(uint32_t*)(message[idx]); idx += 4;
-    RWer_life_ = *(uint16_t*)(message[idx]); idx += 2;
-    path_length_in_Host_ = *(uint16_t*)(message[idx]); idx += 2;
-    reserved_ = *(uint32_t*)(message[idx]); idx += 4;
-    next_index_ = *(uint64_t*)(message[idx]); idx += 8;
-
-    path_.resize(getRequiredPathSize());
-    int last_idx = getNextIndexOfPath() - 1;
-    for (int i = 0; i <= last_idx; i++) {
-        path_[i] = *(uint64_t*)(message[idx]); idx += 8;
-    }
 }
 
 inline void RandomWalker::inputMessageID(const uint8_t& id) {
@@ -283,7 +256,7 @@ inline uint64_t RandomWalker::getNextIndex() {
 inline void RandomWalker::updateRWer(const uint64_t& next_node, const uint64_t& host_id, const uint64_t& node_degree, const uint64_t& index_uv, const uint64_t& index_vu) {
     uint32_t start_index = getNextIndexOfPath();
     if (getCurrentNodeHostID() != host_id) {
-        path_[start_index++] = (host_id<<16); RWer_size_ += 8; // HostID 入力
+        path_[start_index++] = (host_id<<16); // HostID 入力
         path_length_in_Host_ = 0;
     }
     if (isSended()) {
@@ -291,10 +264,10 @@ inline void RandomWalker::updateRWer(const uint64_t& next_node, const uint64_t& 
         inputSendFlag(false);
     } 
 
-    path_[start_index++] = next_node; RWer_size_ += 8;
-    path_[start_index++] = node_degree; RWer_size_ += 8;
-    path_[start_index++] = index_uv; RWer_size_ += 8;
-    path_[start_index++] = index_vu; RWer_size_ += 8;
+    path_[start_index++] = next_node;
+    path_[start_index++] = node_degree;
+    path_[start_index++] = index_uv;
+    path_[start_index++] = index_vu;
     
     if (path_length_in_Host_ < MAX_PATH_LENGTH - 1) path_length_in_Host_++;
     path_[getCurrentHostIndex()] += (1<<1);
@@ -329,26 +302,4 @@ inline std::unordered_set<uint64_t> RandomWalker::getHostGroup() {
         host_index += 4 * path_length_ + 1;
     }
     return host_set;
-}
-
-inline uint16_t RandomWalker::getRequiredPathSize() {
-    return (RWer_size_ - 8 - 8 - 8)/8 + RWer_life_*5;
-}
-
-inline void RandomWalker::writeMessage(char* message) {
-    int idx = 0;
-    memcpy(message + idx, &ver_id_, sizeof(uint8_t)); idx += sizeof(uint8_t);
-    memcpy(message + idx, &flag_, sizeof(uint8_t)); idx += sizeof(uint8_t);
-    memcpy(message + idx, &RWer_size_, sizeof(uint16_t)); idx += sizeof(uint16_t);
-    memcpy(message + idx, &RWer_id_, sizeof(uint32_t)); idx += sizeof(uint32_t);
-    memcpy(message + idx, &RWer_life_, sizeof(uint16_t)); idx += sizeof(uint16_t);
-    memcpy(message + idx, &path_length_in_Host_, sizeof(uint16_t)); idx += sizeof(uint16_t);
-    memcpy(message + idx, &reserved_, sizeof(uint32_t)); idx += sizeof(uint32_t);
-    memcpy(message + idx, &next_index_, sizeof(uint64_t)); idx += sizeof(uint64_t);
-    
-    int i = 0;
-    while (idx < RWer_size_) {
-        memcpy(message + idx, &path_[i], sizeof(uint64_t)); idx += sizeof(uint64_t);
-        i++;
-    }
 }

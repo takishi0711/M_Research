@@ -28,8 +28,5 @@ const uint32_t MAX_SURVIVING_RWER = 500;
 // パラメタ (メッセージ長)
 const uint32_t MESSAGE_MAX_LENGTH = 1450;
 
-// パラメタ (メッセージ終了判定)
-const uint8_t MESSAGE_END = 100;
-
 // キャッシュサイズの最大値
 const uint32_t MAX_CACHE_SIZE = 100000;

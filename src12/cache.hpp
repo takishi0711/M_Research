@@ -33,7 +33,7 @@ public :
     uint32_t getIP(const uint32_t& node_ID);
 
     // RWer の経路情報からグラフデータをキャッシュとして保存
-    void addRWer(RandomWalker& RWer, Graph& graph);
+    void addRWer(std::unique_ptr<RandomWalker>&& RWer_ptr, Graph& graph);
 
     // エッジをキャッシュに登録
     void addEdge(uint32_t* node_u, uint32_t* node_v, Graph& graph);
@@ -97,7 +97,8 @@ inline uint32_t Cache::getIP(const uint32_t& node_ID) {
     }
 }
 
-inline void Cache::addRWer(RandomWalker& RWer, Graph& graph) {
+inline void Cache::addRWer(std::unique_ptr<RandomWalker>&& RWer_ptr, Graph& graph) {
+    // todo
     uint32_t path_length = RWer.getPathLength();
     uint32_t path[path_length*5];
     RWer.getPath(path);
