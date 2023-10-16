@@ -27,7 +27,7 @@
 // RWer_life_ (16bit):
 // RWer の残り歩数
 // 
-// path_length_in_Host_ (16bit):
+// path_length_at_current_host_ (16bit):
 // RWer の現在の同一ホスト内の経路長
 //
 // reserved_ (32bit):
@@ -139,7 +139,7 @@ private :
     uint16_t RWer_size_ = 0;
     uint32_t RWer_id_ = 0;    
     uint16_t RWer_life_ = 0; 
-    uint16_t path_length_in_Host_ = 0; 
+    uint16_t path_length_at_current_host_ = 0; 
     uint32_t reserved_ = 0; 
     uint64_t next_index_ = 0;
     std::vector<uint64_t> path_;
@@ -157,7 +157,7 @@ inline RandomWalker::RandomWalker() {
 inline RandomWalker::RandomWalker(const uint64_t& source_node, const uint64_t& node_degree, const uint32_t& RWer_id, const uint64_t& HostID, const uint32_t& RWer_life) {
     inputMessageID(ALIVE);
     RWer_size_ = 8 + 8 + 8;
-    path_length_in_Host_ = 1;
+    path_length_at_current_host_ = 1;
     RWer_id_ = RWer_id;
     RWer_life_ = RWer_life;
     path_.resize(getRequiredPathSize());
@@ -173,7 +173,7 @@ inline RandomWalker::RandomWalker(const char* message) {
     RWer_size_ = *(uint16_t*)(message[idx]); idx += 2;
     RWer_id_ = *(uint32_t*)(message[idx]); idx += 4;
     RWer_life_ = *(uint16_t*)(message[idx]); idx += 2;
-    path_length_in_Host_ = *(uint16_t*)(message[idx]); idx += 2;
+    path_length_at_current_host_ = *(uint16_t*)(message[idx]); idx += 2;
     reserved_ = *(uint32_t*)(message[idx]); idx += 4;
     next_index_ = *(uint64_t*)(message[idx]); idx += 8;
 
@@ -215,7 +215,7 @@ inline uint32_t RandomWalker::getRWerSize() {
 }
 
 inline uint8_t RandomWalker::getPathLength() {
-    return path_length_in_Host_;
+    return path_length_at_current_host_;
 }
 
 inline void RandomWalker::inputRWerLife(const uint16_t& life) {
@@ -244,7 +244,7 @@ inline uint64_t RandomWalker::getCurrentNode() {
 }
 
 inline uint64_t RandomWalker::getCurrentHostIndex() {
-    return getCurrentIndexOfPath() - (4*(path_length_in_Host_ - 1) + 1);
+    return getCurrentIndexOfPath() - (4*(path_length_at_current_host_ - 1) + 1);
 }
 
 inline uint64_t RandomWalker::getCurrentNodeHostID() {
@@ -253,7 +253,7 @@ inline uint64_t RandomWalker::getCurrentNodeHostID() {
 
 inline uint32_t RandomWalker::getPrevIndexOfPath() {
     uint32_t prev_index;
-    if (path_length_in_Host_ == 1) prev_index = getNextIndexOfPath() - (4 + 1 + 4);
+    if (path_length_at_current_host_ == 1) prev_index = getNextIndexOfPath() - (4 + 1 + 4);
     else prev_index = getNextIndexOfPath() - (4 + 1 + 4);
 
     if (prev_index < 0) {
@@ -284,7 +284,7 @@ inline void RandomWalker::updateRWer(const uint64_t& next_node, const uint64_t& 
     uint32_t start_index = getNextIndexOfPath();
     if (getCurrentNodeHostID() != host_id) {
         path_[start_index++] = (host_id<<16); RWer_size_ += 8; // HostID 入力
-        path_length_in_Host_ = 0;
+        path_length_at_current_host_ = 0;
     }
     if (isSended()) {
         path_[getCurrentHostIndex()] |= 1; // 送信フラグを立てる
@@ -296,7 +296,7 @@ inline void RandomWalker::updateRWer(const uint64_t& next_node, const uint64_t& 
     path_[start_index++] = index_uv; RWer_size_ += 8;
     path_[start_index++] = index_vu; RWer_size_ += 8;
     
-    if (path_length_in_Host_ < MAX_PATH_LENGTH - 1) path_length_in_Host_++;
+    if (path_length_at_current_host_ < MAX_PATH_LENGTH - 1) path_length_at_current_host_++;
     path_[getCurrentHostIndex()] += (1<<1);
 
     RWer_life_--;
@@ -342,7 +342,7 @@ inline void RandomWalker::writeMessage(char* message) {
     memcpy(message + idx, &RWer_size_, sizeof(uint16_t)); idx += sizeof(uint16_t);
     memcpy(message + idx, &RWer_id_, sizeof(uint32_t)); idx += sizeof(uint32_t);
     memcpy(message + idx, &RWer_life_, sizeof(uint16_t)); idx += sizeof(uint16_t);
-    memcpy(message + idx, &path_length_in_Host_, sizeof(uint16_t)); idx += sizeof(uint16_t);
+    memcpy(message + idx, &path_length_at_current_host_, sizeof(uint16_t)); idx += sizeof(uint16_t);
     memcpy(message + idx, &reserved_, sizeof(uint32_t)); idx += sizeof(uint32_t);
     memcpy(message + idx, &next_index_, sizeof(uint64_t)); idx += sizeof(uint64_t);
     
