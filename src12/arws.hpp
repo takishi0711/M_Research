@@ -212,14 +212,15 @@ inline void ARWS::executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr) {
             RWer_ptr->setCurrentDegree(graph_.getDegree(current_node));
 
             // RW を一歩進める
-            if (RWer_ptr->isSended() == true) { // 他のサーバから送られてきた RWer
+            if (RWer_ptr->isSended() == true && RWer_ptr->isInputNextIndex() == true) { // 他のサーバから送られてきた RWer
 
                 // current node -> prev node の index を登録
                 RWer_ptr->setPrevIndex(graph_.indexOfUV(current_node, RWer_ptr->getPrevNode()));
 
-                uint32_t next_node = graph_.getNextNode(current_node, RWer_ptr->getNextIndex());
+                uint32_t next_index = RWer_ptr->getNextIndex();
+                uint32_t next_node = graph_.getNextNode(current_node, next_index);
 
-                RWer_ptr->updateRWer(next_node, graph_.getIP(next_node), 0, RWer_ptr->getNextIndex(), graph_.indexOfUV(next_node, current_node));
+                RWer_ptr->updateRWer(next_node, graph_.getIP(next_node), 0, next_index, graph_.indexOfUV(next_node, current_node));
 
             } else if (RWer_ptr->isEnd() || graph_.getDegree(current_node) == 0) { // 寿命切れ もしくは次数 0 なら終了
 
@@ -245,7 +246,8 @@ inline void ARWS::executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr) {
             if (!cache_.hasDegree(current_node)) { // 次数情報がない (元グラフの他サーバ隣接ノードの初期状態)
                 // debug
                 // std::cout << "motolinsetu" << std::endl; 
-
+                
+                RWer_ptr->inputSendFlag(true);
                 send_queue_[graph_.getIP(current_node)].push(std::move(RWer_ptr));
 
                 break;
@@ -356,7 +358,7 @@ inline void ARWS::sendMessage(const uint32_t& dst_ip) {
         
         // キューからRWerを取ってきてメッセージに詰める
         uint16_t RWer_count = 0;
-        uint32_t now_length = send_queue_[dst_ip].pop(message + sizeof(uint8_t) + sizeof(uint16_t), MESSAGE_MAX_LENGTH, hostip_, RWer_count);
+        uint32_t now_length = send_queue_[dst_ip].pop(message + sizeof(uint8_t) + sizeof(uint16_t), MESSAGE_MAX_LENGTH, RWer_count);
 
         // メッセージのヘッダ情報を書き込む
         // バージョン: 4bit (0), 
@@ -395,10 +397,10 @@ inline void ARWS::receiveMessage(int sockfd, const uint16_t& port_num) {
 
         if (ver_id & MASK_MESSEGEID == 3) { // 実験開始の合図
             
-            uint32_t* ip = (uint32_t*)(message + sizeof(uint32_t));
-            uint32_t* num_RWer = (uint32_t*)(message + sizeof(uint32_t) + sizeof(uint32_t));
+            uint32_t* startmanager_ip = (uint32_t*)(message + sizeof(ver_id));
+            uint32_t* num_RWer = (uint32_t*)(message + sizeof(ver_id) + sizeof(startmanager_ip));
 
-            startmanagerip_ = *ip;
+            startmanagerip_ = *startmanager_ip;
             RW_config_.setNumberOfRWExecution(*num_RWer);
 
             // debug

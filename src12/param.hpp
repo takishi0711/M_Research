@@ -26,7 +26,7 @@ const uint32_t MAX_PATH_LENGTH = 50;
 const uint32_t MAX_SURVIVING_RWER = 500;
 
 // パラメタ (メッセージ長)
-const uint32_t MESSAGE_MAX_LENGTH = 1450;
+const uint32_t MESSAGE_MAX_LENGTH = 8950;
 
 // キャッシュサイズの最大値
 const uint32_t MAX_CACHE_SIZE = 100000;

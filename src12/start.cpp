@@ -7,7 +7,7 @@
 
 // 「実験開始の合図を全サーバに送り、実験の終了を観測する」サーバ
 int main(int argc, char *argv[]) {
-    StartManager start;
+
 
     // 分割数
     int split_num = 0;
@@ -41,8 +41,10 @@ int main(int argc, char *argv[]) {
     std::cout << "待機時間？" << std::endl;
     std::cin >> wait_time;
 
+    StartManager start(split_num);
+
     for (int i = 0; i < cnt; i++) {
-        start.sendStart(ofs_time, ofs_rerun, RW_num, split_num);
+        start.sendStart(ofs_time, ofs_rerun, RW_num);
 
         // if (RW_num == 100000) {
         //     std::this_thread::sleep_for(std::chrono::seconds(200));

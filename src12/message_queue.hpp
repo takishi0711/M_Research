@@ -58,7 +58,7 @@ public :
 
     // message_queue_ からメッセージをまとめて取り出す (RWer 用、送信先毎の送信キュー)
     // メッセージ長を返す
-    uint32_t pop(char* message, const uint32_t& MESSAGE_MAX_LENGTH, const uint32_t& hostip, uint16_t& RWer_count) {
+    uint32_t pop(char* message, const uint32_t& MESSAGE_MAX_LENGTH, uint16_t& RWer_count) {
         { // 排他制御
             std::unique_lock<std::mutex> lk(mtx_message_queue_);
 
@@ -77,7 +77,7 @@ public :
                 uint32_t RWer_data_length = RWer_ptr->getRWerSize();
 
                 if (now_length + RWer_data_length >= MESSAGE_MAX_LENGTH) { // メッセージに収まりきらなくなったら終了
-                    message_queue_.push(RWer);
+                    message_queue_.push(std::move(RWer_ptr));
                     return now_length;
                 }
 
@@ -85,6 +85,7 @@ public :
                 // memcpy(message + now_length, &RWer, RWer_data_length);
                 RWer_ptr->writeMessage(message + now_length);
                 now_length += RWer_data_length;
+                RWer_count++;
             }
 
             return now_length;

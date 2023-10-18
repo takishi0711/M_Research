@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <shared_mutex>
+#include <vector>
 
 #include "graph.hpp"
 #include "random_walker.hpp"
@@ -36,7 +37,7 @@ public :
     void addRWer(std::unique_ptr<RandomWalker>&& RWer_ptr, Graph& graph);
 
     // エッジをキャッシュに登録
-    void addEdge(uint32_t* node_u, uint32_t* node_v, Graph& graph);
+    void addEdge(const std::vector<uint64_t>& path, const uint32_t& node_u_idx, const uint32_t& node_v_idx, Graph& graph);
 
     // ip アドレス情報を登録
     void registerIP(const uint32_t& node_ID, const uint32_t& ip);
@@ -98,26 +99,26 @@ inline uint32_t Cache::getIP(const uint32_t& node_ID) {
 }
 
 inline void Cache::addRWer(std::unique_ptr<RandomWalker>&& RWer_ptr, Graph& graph) {
-    // todo
-    uint32_t path_length = RWer.getPathLength();
-    uint32_t path[path_length*5];
-    RWer.getPath(path);
+    uint16_t path_length;
+    std::vector<uint64_t> path; // path: (頂点, ホストID, 次数, indexuv, indexvu), (), (), ... 
+    RWer_ptr->getPath(path_length, path);
+
 
     for (int i = 0; i < path_length-1; i++) {
         // エッジをキャッシュに追加 (無向グラフ)
-        addEdge(&(path[i*5]), &(path[(i+1)*5]), graph);
+        addEdge(path, i*5, (i+1)*5, graph);
     }
 }
 
-inline void Cache::addEdge(uint32_t* node_u, uint32_t* node_v, Graph& graph) {
-    uint32_t node_ID_u = node_u[0];
-    uint32_t node_ID_v = node_v[0];
-    uint32_t hostip_u = node_u[1];
-    uint32_t hostip_v = node_v[1];
-    uint32_t degree_u = node_u[2];
-    uint32_t degree_v = node_v[2];
-    uint32_t index_uv = node_v[3];
-    uint32_t index_vu = node_v[4];
+inline void Cache::addEdge(const std::vector<uint64_t>& path, const uint32_t& node_u_idx, const uint32_t& node_v_idx, Graph& graph) {
+    uint32_t node_ID_u = path[node_u_idx];
+    uint32_t node_ID_v = path[node_v_idx];
+    uint32_t hostip_u = path[node_u_idx + 1];
+    uint32_t hostip_v = path[node_v_idx + 1];
+    uint32_t degree_u = path[node_u_idx + 2];
+    uint32_t degree_v = path[node_v_idx + 2];
+    uint32_t index_uv = path[node_v_idx + 3];
+    uint32_t index_vu = path[node_v_idx + 4];
 
     registerIP(node_ID_u, hostip_u);
     registerIP(node_ID_v, hostip_v);

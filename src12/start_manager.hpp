@@ -26,7 +26,7 @@ class StartManager {
 public :
 
     // コンストラクタ
-    StartManager();
+    StartManager(const uint32_t& split_num);
 
     // 実験開始の合図
     void sendStart(std::ofstream& ofs_time, std::ofstream& ofs_rerun, const int32_t RW_num);
@@ -45,13 +45,14 @@ private :
     std::string hostname_; // StartManager のホスト名
     uint32_t hostip_; // StartManager の IP アドレス
     uint32_t RW_execution_num_ = 0;
-    std::vector<std::string> worker_ip_ = {"10.58.60.3", "10.58.60.5", "10.58.60.6", "10.58.60.7", "10.58.60.8"}; // 実験で使う通信先 IP アドレス
+    // std::vector<std::string> worker_ip_ = {"10.58.60.3", "10.58.60.5", "10.58.60.6", "10.58.60.7", "10.58.60.8"}; // 実験で使う通信先 IP アドレス
+    std::vector<uint32_t> worker_ip_;
+    uint32_t split_num_ = 0;
 
     // パラメタ (メッセージ長)
     const size_t MESSAGE_LENGTH = 250;
 
     // 実験パラメタ
-    const uint32_t split_num_ = 5;
     const uint32_t subgraph_size_ = 100;
 
 };
@@ -61,7 +62,7 @@ private :
 //////////////////////////////////////////////////////////////////////////
 
 
-inline StartManager::StartManager() {
+inline StartManager::StartManager(const uint32_t& split_num) {
     // 自分のホスト名
     char hostname_c[128]; // ホスト名
     gethostname(hostname_c, sizeof(hostname_c)); // ホスト名を取得
@@ -81,6 +82,16 @@ inline StartManager::StartManager() {
     ioctl(fd, SIOCGIFADDR, &ifr);
     close(fd);
     hostip_ = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
+
+    // worker の IP アドレス情報を入手
+    std::ifstream reading_file;
+    reading_file.open("../graph_data/server.txt", std::ios::in);
+    std::string reading_line_buffer;
+    while (std::getline(reading_file, reading_line_buffer)) {
+        worker_ip_.emplace_back(inet_addr(reading_line_buffer.c_str()));
+    }
+
+    split_num_ = split_num;
 }
 
 inline void StartManager::sendStart(std::ofstream& ofs_time, std::ofstream& ofs_rerun, const int32_t RW_num) {
@@ -101,15 +112,19 @@ inline void StartManager::sendStart(std::ofstream& ofs_time, std::ofstream& ofs_
         memset(&addr, 0, sizeof(struct sockaddr_in)); // memsetで初期化
         addr.sin_family = AF_INET; // アドレスファミリ(ipv4)
         addr.sin_port = htons(10000); // ポート番号, htons()関数は16bitホストバイトオーダーをネットワークバイトオーダーに変換
-        addr.sin_addr.s_addr = inet_addr(worker_ip_[i].c_str()); // IPアドレス, inet_addr()関数はアドレスの翻訳        
+        addr.sin_addr.s_addr = worker_ip_[i]; // IPアドレス, inet_addr()関数はアドレスの翻訳        
 
-        // メッセージ生成 (id: 4B, IPアドレス: 4B, RW 実行回数: 4B)
+        // メッセージ生成 (id: 1B, IPアドレス: 4B, RW 実行回数: 4B)
         char message[MESSAGE_LENGTH];
-        uint32_t message_ID = 1; // メッセージ ID (start は 1)
 
-        memcpy(message, &message_ID, sizeof(message_ID));
-        memcpy(message + sizeof(message_ID), &hostip_, sizeof(hostip_));
-        memcpy(message + sizeof(message_ID) + sizeof(hostip_), &RW_execution_num_, sizeof(RW_execution_num_));
+        // メッセージのヘッダ情報を書き込む
+        // バージョン: 4bit (0), 
+        // メッセージID: 4bit (3),
+        uint8_t ver_id = 3; 
+        memcpy(message, &ver_id, sizeof(uint8_t));
+
+        memcpy(message + sizeof(ver_id), &hostip_, sizeof(hostip_));
+        memcpy(message + sizeof(ver_id) + sizeof(hostip_), &RW_execution_num_, sizeof(RW_execution_num_));
 
         // データ送信
         sendto(sockfd, message, MESSAGE_LENGTH, 0, (struct sockaddr *)&addr, sizeof(addr)); // 送信
@@ -134,13 +149,16 @@ inline void StartManager::sendEnd(std::ofstream& ofs_time, std::ofstream& ofs_re
         memset(&addr, 0, sizeof(struct sockaddr_in)); // memsetで初期化
         addr.sin_family = AF_INET; // アドレスファミリ(ipv4)
         addr.sin_port = htons(10000); // ポート番号, htons()関数は16bitホストバイトオーダーをネットワークバイトオーダーに変換
-        addr.sin_addr.s_addr = inet_addr(worker_ip_[i].c_str()); // IPアドレス, inet_addr()関数はアドレスの翻訳
+        addr.sin_addr.s_addr = worker_ip_[i]; // IPアドレス, inet_addr()関数はアドレスの翻訳
 
-        // メッセージ生成 (id: 4B)
+        // メッセージ生成 (id: 1B)
         char message[MESSAGE_LENGTH];
-        uint8_t message_ID = 3; // メッセージ ID (end は 3)
 
-        memcpy(message, &message_ID, sizeof(message_ID));
+        // メッセージのヘッダ情報を書き込む
+        // バージョン: 4bit (0), 
+        // メッセージID: 4bit (4),
+        uint8_t ver_id = 4; 
+        memcpy(message, &ver_id, sizeof(uint8_t));
 
         // データ送信
         sendto(sockfd, message, MESSAGE_LENGTH, 0, (struct sockaddr *)&addr, sizeof(addr)); // 送信 

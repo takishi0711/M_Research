@@ -5,6 +5,8 @@
 #include <sstream>
 #include <unordered_set>
 #include <iostream>
+#include <bitset>
+#include <cstring>
 
 #include "param.hpp"
 
@@ -17,7 +19,7 @@
 // メッセージ ID について, 0 -> 生存した RWer, 1 -> 終了した RWer, 2 -> 複数の RWer が入っているパケット, 3 -> 実験開始の合図, 4 -> 実験終了の合図
 // 
 // flag_ (8bit): 
-// 一歩前で通信が発生したか: 1bit, あまり : 7bit
+// 一歩前で通信が発生したか: 1bit, next_index に値が入っているか: 1bit, あまり : 6bit
 // 
 // RWer_size_ (16bit):
 // RWer 単体のメモリサイズ
@@ -67,6 +69,12 @@ public :
 
     // 一歩前で通信が発生したか (true: した, false: してない)
     bool isSended();
+
+    // next_index_ の値の flag を入れる
+    void inputNextIndexFlag(bool flag);
+
+    // next_index_ に値が入っているかどうか
+    bool isInputNextIndex();
 
     // RWer のサイズを入手 (Byte 単位)
     uint32_t getRWerSize();
@@ -131,6 +139,14 @@ public :
     // RWer のデータを書き込む
     void writeMessage(char* message);
 
+    // path_ の {HostID(48bit) + 同HostID内の経路長(15bit) + 通信が発生したか(1bit)} から HostID と 同HostID内の経路長を抜き出す
+    void getHostIDAndLengthInPath(const uint64_t& data, uint64_t& host_id, uint16_t& length);
+
+    // 引数の path に path_ の情報を書き込む (各頂点にホストIDもつける), path_length に全経路長を書きこむ
+    void getPath(uint16_t& path_length, std::vector<uint64_t>& path);
+
+    // デバッグ用, RWer の出力
+    void printRWer();
 
 private :
 
@@ -155,32 +171,42 @@ inline RandomWalker::RandomWalker() {
 }
 
 inline RandomWalker::RandomWalker(const uint64_t& source_node, const uint64_t& node_degree, const uint32_t& RWer_id, const uint64_t& HostID, const uint32_t& RWer_life) {
+    if (RWer_life <= 0) {
+        perror("initial life < 0");
+        exit(1); // 異常終了
+    }
     inputMessageID(ALIVE);
     RWer_size_ = 8 + 8 + 8;
     path_length_at_current_host_ = 1;
     RWer_id_ = RWer_id;
     RWer_life_ = RWer_life;
     path_.resize(getRequiredPathSize());
-    path_[0] = (HostID<<16) + (1<<1) + 1; // HostID, 同HostID内の経路長入力 (終了した後最初のホストには送信するので, 送信フラグを入れておく)
-    path_[1] = source_node;
-    path_[2] = node_degree;
+    path_[0] = (HostID<<16) + (1<<1) + 1; RWer_size_ += 8; // HostID, 同HostID内の経路長入力 (終了した後最初のホストには送信するので, 送信フラグを入れておく)
+    path_[1] = source_node; RWer_size_ += 8;
+    path_[2] = node_degree; RWer_size_ += 8;
+    path_[3] = 0; RWer_size_ += 8;
+    path_[4] = 0; RWer_size_ += 8;
+    RWer_life_--;
 }
 
 inline RandomWalker::RandomWalker(const char* message) {
     int idx = 0;
-    ver_id_ = *(uint8_t*)(message[idx]); idx += 1;
-    flag_ = *(uint8_t*)(message[idx]); idx += 1;
-    RWer_size_ = *(uint16_t*)(message[idx]); idx += 2;
-    RWer_id_ = *(uint32_t*)(message[idx]); idx += 4;
-    RWer_life_ = *(uint16_t*)(message[idx]); idx += 2;
-    path_length_at_current_host_ = *(uint16_t*)(message[idx]); idx += 2;
-    reserved_ = *(uint32_t*)(message[idx]); idx += 4;
-    next_index_ = *(uint64_t*)(message[idx]); idx += 8;
+    ver_id_ = *(uint8_t*)(message + idx); idx += 1;
+    flag_ = *(uint8_t*)(message + idx); idx += 1;
+    RWer_size_ = *(uint16_t*)(message + idx); idx += 2;
+    RWer_id_ = *(uint32_t*)(message + idx); idx += 4;
+    RWer_life_ = *(uint16_t*)(message + idx); idx += 2;
+    path_length_at_current_host_ = *(uint16_t*)(message + idx); idx += 2;
+    reserved_ = *(uint32_t*)(message + idx); idx += 4;
+    next_index_ = *(uint64_t*)(message + idx); idx += 8;
+
+    // debug
+    std::cout << "getRequiredPathSize() = " << getRequiredPathSize() << std::endl;
 
     path_.resize(getRequiredPathSize());
     int last_idx = getNextIndexOfPath() - 1;
     for (int i = 0; i <= last_idx; i++) {
-        path_[i] = *(uint64_t*)(message[idx]); idx += 8;
+        path_[i] = *(uint64_t*)(message + idx); idx += 8;
     }
 }
 
@@ -209,6 +235,14 @@ inline bool RandomWalker::isSended() {
     return (flag_>>7)&1;
 }
 
+inline void RandomWalker::inputNextIndexFlag(bool flag) {
+    flag_ &= ~(1<<6);
+    flag_ |= (flag<<6);
+}
+
+inline bool RandomWalker::isInputNextIndex() {
+    return (flag_>>6)&1;
+}
 
 inline uint32_t RandomWalker::getRWerSize() {
     return RWer_size_;
@@ -274,14 +308,24 @@ inline uint64_t RandomWalker::getHostID() {
 
 inline void RandomWalker::setIndex(const uint64_t& index_num) {
     next_index_ = index_num;
+    inputNextIndexFlag(true);
 }
 
 inline uint64_t RandomWalker::getNextIndex() {
+    if (!isInputNextIndex()) {
+        perror("getNextIndex: no value");
+        exit(1);
+    }
+    inputNextIndexFlag(false);
     return next_index_;
 }
 
 inline void RandomWalker::updateRWer(const uint64_t& next_node, const uint64_t& host_id, const uint64_t& node_degree, const uint64_t& index_uv, const uint64_t& index_vu) {
     uint32_t start_index = getNextIndexOfPath();
+
+    // debug
+    // std::cout << "getNextIndexOfPath() = " << getNextIndexOfPath() << std::endl;
+
     if (getCurrentNodeHostID() != host_id) {
         path_[start_index++] = (host_id<<16); RWer_size_ += 8; // HostID 入力
         path_length_at_current_host_ = 0;
@@ -290,6 +334,9 @@ inline void RandomWalker::updateRWer(const uint64_t& next_node, const uint64_t& 
         path_[getCurrentHostIndex()] |= 1; // 送信フラグを立てる
         inputSendFlag(false);
     } 
+
+    // debug
+    // std::cout << "getCurrentNodeHostID() = " << getCurrentNodeHostID() << std::endl;
 
     path_[start_index++] = next_node; RWer_size_ += 8;
     path_[start_index++] = node_degree; RWer_size_ += 8;
@@ -323,10 +370,10 @@ inline std::unordered_set<uint64_t> RandomWalker::getHostGroup() {
     uint32_t last_index_ = getNextIndexOfPath();
     while (1) {
         if (host_index == last_index_) break;
-        uint64_t host_id = path_[host_index]>>16;
+        uint64_t host_id; uint16_t length;
+        getHostIDAndLengthInPath(path_[host_index], host_id, length);
         host_set.insert(host_id);
-        uint16_t path_length_ = (path_[host_index] & ~((host_id)<<16))>>1;
-        host_index += 4 * path_length_ + 1;
+        host_index += 4 * length + 1;
     }
     return host_set;
 }
@@ -351,4 +398,55 @@ inline void RandomWalker::writeMessage(char* message) {
         memcpy(message + idx, &path_[i], sizeof(uint64_t)); idx += sizeof(uint64_t);
         i++;
     }
+}
+
+inline void RandomWalker::getHostIDAndLengthInPath(const uint64_t& data, uint64_t& host_id, uint16_t& length) {
+    host_id = data>>16;
+    length = (data & ~((host_id)<<16))>>1;
+}
+
+inline void RandomWalker::getPath(uint16_t& path_length, std::vector<uint64_t>& path) {
+    // path: (頂点, ホストID, 次数, indexuv, indexvu), (), (), ... のようにする
+
+    uint16_t path__length = (RWer_size_ - 8 - 8 - 8) / 8; // path_ の長さ
+    int idx = 0;
+    while (idx < path__length) {
+        // HostID, 同一ホスト内の歩長を抜き出す
+        uint64_t host_id; uint16_t length;
+        getHostIDAndLengthInPath(path_[idx++], host_id, length);
+        for (int i = 0; i < length; i++) {
+            path.push_back(path_[idx++]); // 頂点
+            path.push_back(host_id); // ホストID
+            path.push_back(path_[idx++]); // 次数
+            path.push_back(path_[idx++]); // indexuv
+            path.push_back(path_[idx++]); // indexvu
+        } 
+    }
+}
+
+inline void RandomWalker::printRWer() {
+    std::cout << "ver_id_: " << std::bitset<8>(ver_id_) << std::endl;
+    std::cout << "flag_: " << std::bitset<8>(flag_) << std::endl;
+    std::cout << "RWer_size_: " << RWer_size_ << std::endl;
+    std::cout << "RWer_id_: " << RWer_id_ << std::endl;
+    std::cout << "RWer_life_: " << RWer_life_ << std::endl;
+    std::cout << "path_length_at_current_host_: " << path_length_at_current_host_ << std::endl;
+    std::cout << "reserved_: " << reserved_ << std::endl;
+    std::cout << "next_index_: " << next_index_ << std::endl;
+    uint16_t path__length = (RWer_size_ - 8 - 8 - 8) / 8;
+    std::cout << "path__length: " << path__length << std::endl;
+    int idx = 0;
+    while (idx < path__length) {
+        // HostID, 同一ホスト内の歩長を抜き出す
+        uint64_t host_id; uint16_t length;
+        uint8_t send_flag = path_[idx]&1;
+        getHostIDAndLengthInPath(path_[idx++], host_id, length);
+        printf("{%d, %d, %d}, ", host_id, length, send_flag);
+        for (int i = 0; i < length; i++) {
+            printf("(%d, %d, %d, %d), ", path_[idx++], path_[idx++], path_[idx++], path_[idx++]);
+        }
+        std::cout << std::endl;
+    }
+
+    for (int i = 0; i < 3; i++) std::cout << std::endl;
 }

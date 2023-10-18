@@ -49,7 +49,7 @@ inline double RandomWalkConfig::getAlpha() {
 }
 
 inline uint16_t RandomWalkConfig::getRWerLife() {
-    uint16_t life = 0;
+    uint16_t life = 1;
     while (rand_double(mt) > alpha_) life++;
     return life;
 }
