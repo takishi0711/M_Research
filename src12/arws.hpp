@@ -42,6 +42,9 @@ public :
     // RWer 生成 & 処理をする関数
     void generateRWer();
 
+    // RWer の再送制御用スレッドの動作
+    void reSendThread();
+
     // RW を実行する関数
     void executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr);
 
@@ -84,6 +87,9 @@ private :
     RandomWalkerManager RW_manager_; // RWer に関する情報
     Measurement measurement_; // 時間計測用
     Cache cache_; // 他サーバのグラフ情報
+
+    // 再送制御用
+    std::vector<std::thread> re_send_threads_;
 
     // 乱数関連
     std::mt19937 mt{std::random_device{}()}; // メルセンヌ・ツイスタを用いた乱数生成
@@ -164,6 +170,9 @@ inline void ARWS::generateRWer() {
 
         RW_manager_.init(number_of_my_vertices * number_of_RW_execution);
 
+        // 再送制御用スレッドの立ち上げ
+        re_send_threads_.push_back(std::thread(&ARWS::reSendThread, this));
+
         measurement_.setStart();
 
         uint32_t num_threads = GENERATE_RWER;
@@ -174,19 +183,28 @@ inline void ARWS::generateRWer() {
 
             for (j = 0; j < number_of_my_vertices; j++) {
 
-                uint32_t node_id = my_vertices[j];
+                uint64_t node_id = my_vertices[j];
 
                 uint32_t RWer_id = i * number_of_my_vertices + j;
 
                 // 生成スピード調整
                 RW_manager_.lockWhileOver();
+                
+                // 歩数を生成
+                uint16_t life = RW_config_.getRWerLife();
 
                 // RWer を生成
                 // RandomWalker RWer = RandomWalker(node_id, graph_.getDegree(node_id), RWer_id, hostip_, RW_config_.getRWerLife());
-                std::unique_ptr<RandomWalker> RWer_ptr(new RandomWalker(node_id, graph_.getDegree(node_id), RWer_id, hostip_, RW_config_.getRWerLife()));
+                std::unique_ptr<RandomWalker> RWer_ptr(new RandomWalker(node_id, graph_.getDegree(node_id), RWer_id, hostip_, life));
 
                 // 生成時刻を記録
                 RW_manager_.setStartTime(RWer_id);
+
+                // 歩数を記録
+                RW_manager_.setRWerLife(RWer_id, life);
+
+                // node_id を記録
+                RW_manager_.setNodeId(RWer_id, node_id);
 
                 // RW を実行 
                 executeRandomWalk(std::move(RWer_ptr));
@@ -199,6 +217,63 @@ inline void ARWS::generateRWer() {
         std::cout << measurement_.getExecutionTime() << std::endl;
     }
 }
+
+inline void ARWS::reSendThread() {
+    std::cout << "reSendThread" << std::endl;
+
+    bool re_send_flag = false;
+
+    while (1) {
+        if (re_send_flag == false && RW_manager_.getEndcnt() > RW_manager_.getRWerAll() * 0.8) {
+            re_send_flag = true;
+        }
+
+        if (re_send_flag == true) {
+            break;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    // 再送制御開始
+    uint32_t RWer_all = RW_manager_.getRWerAll();
+    std::unordered_set<uint32_t> not_finished_RWer_id;
+    double RWer_life_time_sum = 0;
+    uint32_t RWer_life_sum = 0;
+    for (int RWer_id = 0; RWer_id < RWer_all; RWer_id++) {
+        if (RW_manager_.isEnd(RWer_id)) {
+            RWer_life_time_sum += RW_manager_.getRWerLifeTime(RWer_id);
+            RWer_life_sum += RW_manager_.getRWerLife(RWer_id);
+        } else {
+            not_finished_RWer_id.insert(RWer_id);
+        }
+    }
+    double time_per_step = RWer_life_time_sum / RWer_life_sum; // 一歩当たりにかかる時間の目安 (ms)
+
+    while (1) {
+        std::vector<std::thread> re_generate_threads;
+
+        for (auto it = not_finished_RWer_id.begin(); it != not_finished_RWer_id.end();) {
+            if (RW_manager_.isEnd(*it)) {
+                it = not_finished_RWer_id.erase(it);
+            } else {
+                if (RW_manager_.getRWerLifeTimeNow(*it) > time_per_step * RW_manager_.getRWerLife(*it)) {
+                    re_generate_threads.push_back(std::thread([&]() {
+                        // 生成スピード調整
+                        RW_manager_.lockWhileOver();
+                    }));
+
+                }
+
+                it++;
+            }
+        }
+        
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+}
+
 
 inline void ARWS::executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr) {
 
@@ -492,6 +567,12 @@ inline int ARWS::createTcpServerSocket(const uint16_t& port_num) {
 }
 
 inline void ARWS::sendToStartManager() {
+    // 再送用スレッドを停止させる
+    for (std::thread& th : re_send_threads_) {
+        th.join();
+    }
+    re_send_threads_.clear();
+
     // start manager に送信するのは, RW 終了数, 実行時間
     uint32_t end_count = RW_manager_.getEndcnt();
     double execution_time = RW_manager_.getExecutionTime();
