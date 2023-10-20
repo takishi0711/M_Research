@@ -1,5 +1,9 @@
 #include <iostream>
 #include <unordered_set>
+#include <memory>
+
+using namespace std;
+
 
 #include "../random_walker.hpp"
 
@@ -120,10 +124,10 @@ int main() {
 
         std::cout << "write" << std::endl;
 
-        RandomWalker RWer2(message);
+        unique_ptr<RandomWalker> RWer2(new RandomWalker(message));
 
         RWer.printRWer();
-        RWer2.printRWer();
+        RWer2->printRWer();
     }
 
     // getHostGroup のテスト
@@ -144,6 +148,19 @@ int main() {
 
         for (auto id : host_set) std::cout << id << " ";
         std::cout << std::endl;
+    }
+
+    // たくさん生成してみる
+    {
+        vector<unique_ptr<RandomWalker>> vec;
+
+        for (int i = 0; i < 100; i++) {
+            std::unique_ptr<RandomWalker> RWer_ptr(new RandomWalker(10, 10, 10, 10, 100));
+            vec.push_back(move(RWer_ptr));
+        }
+
+        std::unique_ptr<RandomWalker> RWer_ptr(new RandomWalker(10, 10, 10, 10, 100));
+        cout << sizeof(*RWer_ptr) << endl;
     }
     return 0;
 }

@@ -77,6 +77,7 @@ private :
 
     std::string hostname_; // 自サーバのホスト名
     uint32_t hostip_; // 自サーバの IP アドレス
+    std::string hostip_str_; // IP アドレスの文字列
     uint32_t startmanagerip_; // StartManager の IP アドレス
     Graph graph_; // グラフデータ
     std::vector<uint32_t> worker_ip_all_;
@@ -120,6 +121,7 @@ inline ARWS::ARWS(const std::string& dir_path) {
     ioctl(fd, SIOCGIFADDR, &ifr);
     close(fd);
     hostip_ = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
+    hostip_str_ = inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr);
 
     // worker の IP アドレス情報を入手
     std::ifstream reading_file;
@@ -130,7 +132,7 @@ inline ARWS::ARWS(const std::string& dir_path) {
     }
 
     // グラフファイル読み込み
-    graph_.init(dir_path, hostname_, hostip_, worker_ip_all_);
+    graph_.init(dir_path, hostip_str_, hostip_, worker_ip_all_);
 
     // 受信キューの初期化
     for (int i = 0; i < SEND_RECV_PORT; i++) {
@@ -148,6 +150,30 @@ inline ARWS::ARWS(const std::string& dir_path) {
 
 inline void ARWS::start() {
 
+    std::thread thread_generateRWer(&ARWS::generateRWer, this);
+
+    std::vector<std::thread> threads_sendMessage;
+    for (uint32_t ip : worker_ip_all_) {
+        threads_sendMessage.emplace_back(std::thread(&ARWS::sendMessage, this, ip));
+    }
+
+    std::vector<std::thread> threads_receiveMessage;
+    for (int i = 0; i < SEND_RECV_PORT; i++) {
+        int sockfd = createUdpServerSocket(10000+i);
+        for (int j = 0; j < RECV_PER_PORT; j++) {
+            threads_receiveMessage.emplace_back(std::thread(&ARWS::receiveMessage, this, sockfd, 10000+i));
+        }
+    }
+
+    std::vector<std::thread> threads_procMessage;
+    for (int i = 0; i < SEND_RECV_PORT; i++) {
+        for (int j = 0; j < PROC_MESSAGE_PER_PORT; j++) {
+            threads_procMessage.emplace_back(std::thread(&ARWS::procMessage, this, 10000+i));
+        }
+    }
+
+    // プログラムを終了させないようにする
+    thread_generateRWer.join();
 }
 
 inline void ARWS::generateRWer() {
@@ -186,6 +212,8 @@ inline void ARWS::generateRWer() {
                 uint64_t node_id = my_vertices[j];
 
                 uint32_t RWer_id = i * number_of_my_vertices + j;
+                // RWer ロスがあるかもしれないので一定期間で生成できる RWer 数を加算
+                if (RWer_id%1000 == 0) RW_manager_.addMaxSurvivngRWer();
 
                 // 生成スピード調整
                 RW_manager_.lockWhileOver();
@@ -250,21 +278,38 @@ inline void ARWS::reSendThread() {
     }
     double time_per_step = RWer_life_time_sum / RWer_life_sum; // 一歩当たりにかかる時間の目安 (ms)
 
-    while (1) {
+    while (not_finished_RWer_id.size()) { // 終了していない RWer がなくなるまで 100 ms ごとに実行
+
         std::vector<std::thread> re_generate_threads;
 
         for (auto it = not_finished_RWer_id.begin(); it != not_finished_RWer_id.end();) {
-            if (RW_manager_.isEnd(*it)) {
+
+            if (RW_manager_.isEnd(*it)) { // 終了していたら
+
+                RWer_life_time_sum += RW_manager_.getRWerLifeTime(*it);
+                RWer_life_sum += RW_manager_.getRWerLife(*it);
                 it = not_finished_RWer_id.erase(it);
-            } else {
-                if (RW_manager_.getRWerLifeTimeNow(*it) > time_per_step * RW_manager_.getRWerLife(*it)) {
+
+            } else { // まだ終了していない
+
+                time_per_step = RWer_life_time_sum / RWer_life_sum;
+                if (RW_manager_.getRWerLifeTimeNow(*it) > time_per_step * RW_manager_.getRWerLife(*it)) { // 時間切れで再送
                     re_generate_threads.push_back(std::thread([&]() {
                         // 生成スピード調整
                         RW_manager_.lockWhileOver();
+
+                        uint64_t node_id = RW_manager_.getNodeId(*it);
+                        // RWer を生成
+                        std::unique_ptr<RandomWalker> RWer_ptr(new RandomWalker(node_id, graph_.getDegree(node_id), *it, hostip_, RW_manager_.getRWerLife(*it)));
+
+                        // 生成時刻を記録
+                        RW_manager_.setStartTime(*it);
+
+                        // RW を実行 
+                        executeRandomWalk(std::move(RWer_ptr));
+
                     }));
-
                 }
-
                 it++;
             }
         }
@@ -470,21 +515,21 @@ inline void ARWS::receiveMessage(int sockfd, const uint16_t& port_num) {
 
         uint8_t ver_id = *(uint8_t*)message;
 
-        if (ver_id & MASK_MESSEGEID == 3) { // 実験開始の合図
+        if ((ver_id & MASK_MESSEGEID) == 3) { // 実験開始の合図
             
-            uint32_t* startmanager_ip = (uint32_t*)(message + sizeof(ver_id));
-            uint32_t* num_RWer = (uint32_t*)(message + sizeof(ver_id) + sizeof(startmanager_ip));
+            uint32_t startmanager_ip = *(uint32_t*)(message + sizeof(ver_id));
+            uint32_t num_RWer = *(uint32_t*)(message + sizeof(ver_id) + sizeof(startmanager_ip));
 
-            startmanagerip_ = *startmanager_ip;
-            RW_config_.setNumberOfRWExecution(*num_RWer);
+            startmanagerip_ = startmanager_ip;
+            RW_config_.setNumberOfRWExecution(num_RWer);
 
             // debug
-            std::cout << *num_RWer << std::endl;
+            std::cout << "num_RWer = " << num_RWer << std::endl;
 
             // 実験開始のフラグを立てる
             start_flag_.writeReady(true);
 
-        } else if (ver_id & MASK_MESSEGEID == 2) { // RWer のメッセージ
+        } else if ((ver_id & MASK_MESSEGEID) == 2) { // RWer のメッセージ
             // message に入っている RWer の数を確認
             int idx = sizeof(uint8_t);
             uint16_t RWer_count = *(uint16_t*)(message + idx); idx += sizeof(uint16_t);
@@ -496,7 +541,7 @@ inline void ARWS::receiveMessage(int sockfd, const uint16_t& port_num) {
                 receive_queue_[port_num].push(std::move(RWer_ptr));
             }
             
-        } else if (ver_id & MASK_MESSEGEID == 4) { // 実験結果を送信
+        } else if ((ver_id & MASK_MESSEGEID) == 4) { // 実験結果を送信
 
             sendToStartManager();
 
@@ -620,7 +665,7 @@ inline void ARWS::sendToStartManager() {
     }
 
     // RW Manager　のリセット
-    RW_manager_.reset();
+    // RW_manager_.reset();
 
     // キャッシュデータのリセット
     // cache_.reset();

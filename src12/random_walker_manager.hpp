@@ -27,6 +27,12 @@ public :
     // RWer 終了時間の記録
     void setEndTime(const uint32_t& RWer_id);
 
+    // end_count_ の加算
+    void addEndCount();
+
+    // max_surviving_RWer_now の加算
+    void addMaxSurvivngRWer();
+
     // RWer の歩数を入力
     void setRWerLife(const uint32_t& RWer_id, const uint16_t& life);
 
@@ -51,6 +57,9 @@ public :
     // RWer の歩数を入手
     uint16_t getRWerLife(const uint32_t& RWer_id);
 
+    // node_id を入手
+    uint32_t getNodeId(const uint32_t& RWer_id);
+
     // 実行時間 (s) を入手 (一番遅い RWer の終了時間 - 一番早く生成された RWer の生成時間)
     double getExecutionTime();
 
@@ -66,6 +75,9 @@ public :
     // MAX_SURVIVING_RWER を取得
     uint32_t getMaxSurvivingRwer();
 
+    // max_surviving_RWer_now を取得
+    uint32_t getMaxSurvivingRwerNow();
+
 private :
 
     uint32_t RWer_all_num_ = 0; // RWer の総数
@@ -74,6 +86,7 @@ private :
     std::chrono::system_clock::time_point* end_time_per_RWer_id_ = nullptr; // RWer_id に対する終了時刻
     uint16_t* RWer_life_per_RWer_id_ = nullptr; // RWer_id に対する設定歩数
     uint64_t* node_id_per_RWer_id_ = nullptr; // RWer_id に対する node_id
+    uint32_t max_surviving_RWer_now = MAX_SURVIVING_RWER;
 
     uint32_t start_count_ = 0;
     uint32_t end_count_ = 0;
@@ -123,11 +136,19 @@ inline void RandomWalkerManager::setEndTime(const uint32_t& RWer_id) {
     end_flag_per_RWer_id_[RWer_id] = true;
     end_time_per_RWer_id_[RWer_id] = std::chrono::system_clock::now();
 
+    addEndCount();
+}
+
+inline void RandomWalkerManager::addEndCount() {
     {
         std::unique_lock<std::mutex> uniq_lk(mtx_end_count_);
         end_count_++;
-        if (start_count_ - end_count_ < MAX_SURVIVING_RWER) cv_start_count_.notify_all();
+        if (start_count_ - end_count_ < max_surviving_RWer_now) cv_start_count_.notify_all();
     }
+}
+
+inline void RandomWalkerManager::addMaxSurvivngRWer() {
+    max_surviving_RWer_now++;
 }
 
 inline void RandomWalkerManager::setRWerLife(const uint32_t& RWer_id, const uint16_t& life) {
@@ -169,6 +190,10 @@ inline uint16_t RandomWalkerManager::getRWerLife(const uint32_t& RWer_id) {
     return RWer_life_per_RWer_id_[RWer_id];
 }
 
+inline uint32_t RandomWalkerManager::getNodeId(const uint32_t& RWer_id) {
+    return node_id_per_RWer_id_[RWer_id];
+}
+
 inline double RandomWalkerManager::getExecutionTime() {
     std::chrono::system_clock::time_point min_start_time = start_time_per_RWer_id_[0];
     std::chrono::system_clock::time_point max_end_time = start_time_per_RWer_id_[0];
@@ -186,7 +211,7 @@ inline double RandomWalkerManager::getExecutionTime() {
 inline void RandomWalkerManager::lockWhileOver() {
     {
         std::unique_lock<std::mutex> uniq_lk(mtx_start_count_);
-        cv_start_count_.wait(uniq_lk, [&]{ return (start_count_ - end_count_) < MAX_SURVIVING_RWER;});
+        cv_start_count_.wait(uniq_lk, [&]{ return (start_count_ - end_count_) < max_surviving_RWer_now;});
         start_count_++;
     }
 }
@@ -203,4 +228,7 @@ inline uint32_t RandomWalkerManager::getSurvivingRWerNum() {
 
 inline uint32_t RandomWalkerManager::getMaxSurvivingRwer() {
     return MAX_SURVIVING_RWER;
+}
+inline uint32_t RandomWalkerManager::getMaxSurvivingRwerNow() {
+    return max_surviving_RWer_now;
 }

@@ -122,7 +122,6 @@ inline void StartManager::sendStart(std::ofstream& ofs_time, std::ofstream& ofs_
         // メッセージID: 4bit (3),
         uint8_t ver_id = 3; 
         memcpy(message, &ver_id, sizeof(uint8_t));
-
         memcpy(message + sizeof(ver_id), &hostip_, sizeof(hostip_));
         memcpy(message + sizeof(ver_id) + sizeof(hostip_), &RW_execution_num_, sizeof(RW_execution_num_));
 

@@ -201,7 +201,7 @@ inline RandomWalker::RandomWalker(const char* message) {
     next_index_ = *(uint64_t*)(message + idx); idx += 8;
 
     // debug
-    std::cout << "getRequiredPathSize() = " << getRequiredPathSize() << std::endl;
+    // std::cout << "getRequiredPathSize() = " << getRequiredPathSize() << std::endl;
 
     path_.resize(getRequiredPathSize());
     int last_idx = getNextIndexOfPath() - 1;
@@ -441,9 +441,9 @@ inline void RandomWalker::printRWer() {
         uint64_t host_id; uint16_t length;
         uint8_t send_flag = path_[idx]&1;
         getHostIDAndLengthInPath(path_[idx++], host_id, length);
-        printf("{%d, %d, %d}, ", host_id, length, send_flag);
+        printf("{%ld, %d, %d}, ", host_id, length, send_flag);
         for (int i = 0; i < length; i++) {
-            printf("(%d, %d, %d, %d), ", path_[idx++], path_[idx++], path_[idx++], path_[idx++]);
+            printf("(%ld, %ld, %ld, %ld), ", path_[idx++], path_[idx++], path_[idx++], path_[idx++]);
         }
         std::cout << std::endl;
     }

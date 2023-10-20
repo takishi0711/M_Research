@@ -71,8 +71,8 @@ private :
 //////////////////////////////////////////////////////////////////////////
 
 
-inline void Graph::init(const std::string& dir_path, const std::string& hostname, const uint32_t& hostip, const std::vector<uint32_t>& worker_ip_all) {
-    std::string graph_file_path = dir_path + hostname + ".txt"; // グラフファイルのパス
+inline void Graph::init(const std::string& dir_path, const std::string& host_ip_str, const uint32_t& hostip, const std::vector<uint32_t>& worker_ip_all) {
+    std::string graph_file_path = dir_path + host_ip_str + ".txt"; // グラフファイルのパス
     std::ifstream reading_file;
     reading_file.open(graph_file_path, std::ios::in);
     std::string reading_line_buffer;

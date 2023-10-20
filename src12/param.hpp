@@ -14,6 +14,8 @@ const uint32_t END_EXP = 3;
 
 // パラメタ (スレッド数)
 const uint32_t SEND_RECV_PORT = 8;
+const uint32_t RECV_PER_PORT = 1;
+const uint32_t PROC_MESSAGE_PER_PORT = 1;
 const uint32_t GENERATE_RWER = 1;
 
 // 十分に大きな値

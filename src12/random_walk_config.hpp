@@ -24,7 +24,7 @@ public :
 
 private :
     uint32_t number_of_RW_execution_ = 10000; // RW の実行回数
-    double alpha_ = 0.02; // RW の終了確率
+    double alpha_ = 0.15; // RW の終了確率
 
     // 乱数関連
     std::mt19937 mt{std::random_device{}()}; // メルセンヌ・ツイスタを用いた乱数生成
