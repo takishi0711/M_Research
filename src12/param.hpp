@@ -9,8 +9,10 @@ const uint32_t MASK_MESSEGEID = (1<<3) + (1<<2) + (1<<1) + (1<<0);
 // message_id_ の値
 const uint32_t ALIVE = 0;
 const uint32_t DEAD = 1;
-const uint32_t START_EXP = 2;
-const uint32_t END_EXP = 3;
+const uint32_t RWERS = 2;
+const uint32_t START_EXP = 3;
+const uint32_t END_EXP = 4;
+const uint32_t DEAD_SEND = 5;
 
 // パラメタ (スレッド数)
 const uint32_t SEND_RECV_PORT = 8;

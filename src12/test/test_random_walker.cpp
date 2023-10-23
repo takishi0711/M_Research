@@ -162,5 +162,18 @@ int main() {
         std::unique_ptr<RandomWalker> RWer_ptr(new RandomWalker(10, 10, 10, 10, 100));
         cout << sizeof(*RWer_ptr) << endl;
     }
+
+    // getHostID について
+    {
+        RandomWalker RWer(1000000, 3, 1000, 54278666, 5);
+
+        uint64_t id = RWer.getHostID();
+        // uint64_t id = RWer.getCurrentNodeHostID();
+
+        cout << id << endl;
+
+        uint32_t hostip = 1000000;
+        if (RWer.getHostID() == hostip) cout << "ok" << endl;
+    }
     return 0;
 }

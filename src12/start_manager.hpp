@@ -17,6 +17,8 @@
 #include <fstream>
 #include <unordered_map>
 
+#include "param.hpp"
+
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
@@ -120,13 +122,16 @@ inline void StartManager::sendStart(std::ofstream& ofs_time, std::ofstream& ofs_
         // メッセージのヘッダ情報を書き込む
         // バージョン: 4bit (0), 
         // メッセージID: 4bit (3),
-        uint8_t ver_id = 3; 
+        uint8_t ver_id = START_EXP; 
         memcpy(message, &ver_id, sizeof(uint8_t));
         memcpy(message + sizeof(ver_id), &hostip_, sizeof(hostip_));
         memcpy(message + sizeof(ver_id) + sizeof(hostip_), &RW_execution_num_, sizeof(RW_execution_num_));
 
         // データ送信
         sendto(sockfd, message, MESSAGE_LENGTH, 0, (struct sockaddr *)&addr, sizeof(addr)); // 送信
+
+        // debug
+        std::this_thread::sleep_for(std::chrono::seconds(5));
     } 
 
     // ソケットクローズ
@@ -156,7 +161,7 @@ inline void StartManager::sendEnd(std::ofstream& ofs_time, std::ofstream& ofs_re
         // メッセージのヘッダ情報を書き込む
         // バージョン: 4bit (0), 
         // メッセージID: 4bit (4),
-        uint8_t ver_id = 4; 
+        uint8_t ver_id = END_EXP; 
         memcpy(message, &ver_id, sizeof(uint8_t));
 
         // データ送信

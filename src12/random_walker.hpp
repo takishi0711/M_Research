@@ -85,6 +85,9 @@ public :
     // RWer_life を入手
     uint16_t getRWerLife();
 
+    // RWer_life を 1 減らす
+    void decrementRWerLife();
+
     // RWer の経路長を入手
     uint8_t getPathLength();
 
@@ -186,7 +189,8 @@ inline RandomWalker::RandomWalker(const uint64_t& source_node, const uint64_t& n
     path_[2] = node_degree; RWer_size_ += 8;
     path_[3] = 0; RWer_size_ += 8;
     path_[4] = 0; RWer_size_ += 8;
-    RWer_life_--;
+    
+    decrementRWerLife();
 }
 
 inline RandomWalker::RandomWalker(const char* message) {
@@ -260,6 +264,11 @@ inline uint16_t RandomWalker::getRWerLife() {
     return RWer_life_;
 }
 
+inline void RandomWalker::decrementRWerLife() {
+    RWer_life_--;
+    if (RWer_life_ == 0) endRWer();
+}
+
 inline uint32_t RandomWalker::getRWerID() {
     return RWer_id_;
 }
@@ -291,19 +300,25 @@ inline uint32_t RandomWalker::getPrevIndexOfPath() {
     else prev_index = getNextIndexOfPath() - (4 + 1 + 4);
 
     if (prev_index < 0) {
-        perror("getPrevNode");
-        exit(1); // 異常終了
+        // perror("getPrevNode");
+        // exit(1); // 異常終了
+        std::cout << "no prev" << std::endl;
     }
 
     return prev_index;
 }
 
 inline uint64_t RandomWalker::getPrevNode() {
-    return path_[getPrevIndexOfPath()];
+    int idx = getPrevIndexOfPath();
+    if (idx < 0) return INF;
+    return path_[idx];
 }
 
 inline uint64_t RandomWalker::getHostID() {
-    return path_[0]>>16;
+    // debug
+    std::cout << "getHostID" << std::endl;
+
+    return (path_[0]>>16);
 }
 
 inline void RandomWalker::setIndex(const uint64_t& index_num) {
@@ -326,14 +341,16 @@ inline void RandomWalker::updateRWer(const uint64_t& next_node, const uint64_t& 
     // debug
     // std::cout << "getNextIndexOfPath() = " << getNextIndexOfPath() << std::endl;
 
-    if (getCurrentNodeHostID() != host_id) {
-        path_[start_index++] = (host_id<<16); RWer_size_ += 8; // HostID 入力
-        path_length_at_current_host_ = 0;
-    }
-    if (isSended()) {
+    if (isSended()) { // 送信が発生してたら path_ 上の現在のホスト情報の送信フラグを立てる
         path_[getCurrentHostIndex()] |= 1; // 送信フラグを立てる
         inputSendFlag(false);
     } 
+
+    if (getCurrentNodeHostID() != host_id) { // 次の頂点のホスト ID が現在と異なっていたら path_ 上にホスト情報を追加
+        path_[start_index++] = (host_id<<16); RWer_size_ += 8; // HostID 入力
+        path_length_at_current_host_ = 0;
+    }
+    
 
     // debug
     // std::cout << "getCurrentNodeHostID() = " << getCurrentNodeHostID() << std::endl;
@@ -343,21 +360,23 @@ inline void RandomWalker::updateRWer(const uint64_t& next_node, const uint64_t& 
     path_[start_index++] = index_uv; RWer_size_ += 8;
     path_[start_index++] = index_vu; RWer_size_ += 8;
     
-    if (path_length_at_current_host_ < MAX_PATH_LENGTH - 1) path_length_at_current_host_++;
+    path_length_at_current_host_++;
     path_[getCurrentHostIndex()] += (1<<1);
 
-    RWer_life_--;
-    if (RWer_life_ == 0) endRWer();
+    decrementRWerLife();
 }
 
 inline void RandomWalker::setPrevIndex(const uint64_t& index_num) {
-    uint32_t prev_index = getPrevIndexOfPath();
-    if (prev_index < 0) {
-        perror("setPrevIndex");
-        exit(1); // 異常終了
-    }
+    // uint32_t prev_index = getPrevIndexOfPath();
+    // if (prev_index < 0) {
+    //     // perror("setPrevIndex");
+    //     // exit(1); // 異常終了
+    //     std::cout << "no setPrevIndex" << std::endl;
+    //     return;
+    // }
+    uint64_t current_index = getCurrentIndexOfPath();
 
-    path_[prev_index + 3] = index_num;
+    path_[current_index + 3] = index_num;
 }
 
 inline void RandomWalker::setCurrentDegree(const uint64_t& node_degree) {
@@ -414,6 +433,7 @@ inline void RandomWalker::getPath(uint16_t& path_length, std::vector<uint64_t>& 
         // HostID, 同一ホスト内の歩長を抜き出す
         uint64_t host_id; uint16_t length;
         getHostIDAndLengthInPath(path_[idx++], host_id, length);
+        path_length += length;
         for (int i = 0; i < length; i++) {
             path.push_back(path_[idx++]); // 頂点
             path.push_back(host_id); // ホストID
@@ -443,7 +463,9 @@ inline void RandomWalker::printRWer() {
         getHostIDAndLengthInPath(path_[idx++], host_id, length);
         printf("{%ld, %d, %d}, ", host_id, length, send_flag);
         for (int i = 0; i < length; i++) {
-            printf("(%ld, %ld, %ld, %ld), ", path_[idx++], path_[idx++], path_[idx++], path_[idx++]);
+            // printf("(%ld, %ld, %ld, %ld), ", path_[idx++], path_[idx++], path_[idx++], path_[idx++]);
+            printf("(%ld, %ld, %ld, %ld), ", path_[idx+0], path_[idx+1], path_[idx+2], path_[idx+3]);
+            idx += 4;
         }
         std::cout << std::endl;
     }

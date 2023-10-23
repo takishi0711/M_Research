@@ -45,6 +45,9 @@ public :
     // RWer 終了数の入手
     uint32_t getEndcnt();
 
+    // RWer がスタートしているかどうか
+    bool isStart(const uint32_t& RWer_id);
+
     // RWer が終了しているかどうか
     bool isEnd(const uint32_t& RWer_id);
 
@@ -81,6 +84,7 @@ public :
 private :
 
     uint32_t RWer_all_num_ = 0; // RWer の総数
+    bool* start_flag_per_RWer_id_ = nullptr; // RWer_id に対する終了判定
     bool* end_flag_per_RWer_id_ = nullptr; // RWer_id に対する終了判定
     std::chrono::system_clock::time_point* start_time_per_RWer_id_ = nullptr; // RWer_id に対する開始時刻
     std::chrono::system_clock::time_point* end_time_per_RWer_id_ = nullptr; // RWer_id に対する終了時刻
@@ -103,10 +107,8 @@ private :
 
 inline void RandomWalkerManager::init(const uint32_t& RWer_all) {
     RWer_all_num_ = RWer_all;
+    start_flag_per_RWer_id_ = new bool[RWer_all];
     end_flag_per_RWer_id_ = new bool[RWer_all];
-    for (int id = 0; id < RWer_all_num_; id++) {
-        end_flag_per_RWer_id_[id] = false;
-    }
     start_time_per_RWer_id_ = new std::chrono::system_clock::time_point[RWer_all];
     end_time_per_RWer_id_ = new std::chrono::system_clock::time_point[RWer_all];
     RWer_life_per_RWer_id_ = new uint16_t[RWer_all];
@@ -114,9 +116,7 @@ inline void RandomWalkerManager::init(const uint32_t& RWer_all) {
 }
 
 inline void RandomWalkerManager::reset() {
-    for (int id = 0; id < RWer_all_num_; id++) {
-        end_flag_per_RWer_id_[id] = false;
-    }
+    delete[] start_flag_per_RWer_id_; start_flag_per_RWer_id_ = nullptr;
     delete[] end_flag_per_RWer_id_; end_flag_per_RWer_id_ = nullptr;
     delete[] start_time_per_RWer_id_; start_time_per_RWer_id_ = nullptr;
     delete[] end_time_per_RWer_id_; end_time_per_RWer_id_ = nullptr;
@@ -125,10 +125,14 @@ inline void RandomWalkerManager::reset() {
 }
 
 inline void RandomWalkerManager::setStartTime(const uint32_t& RWer_id) {
+    start_flag_per_RWer_id_[RWer_id] = true;
     start_time_per_RWer_id_[RWer_id] = std::chrono::system_clock::now();
 }
 
 inline void RandomWalkerManager::setEndTime(const uint32_t& RWer_id) {
+    // debug
+    std::cout << "SetEndTime" << std::endl;
+
     if (end_flag_per_RWer_id_[RWer_id] == true) {
         return;
     }
@@ -165,6 +169,10 @@ inline uint32_t RandomWalkerManager::getRWerAll() {
 
 inline uint32_t RandomWalkerManager::getEndcnt() {
     return end_count_;
+}
+
+inline bool RandomWalkerManager::isStart(const uint32_t& RWer_id) {
+    return start_flag_per_RWer_id_[RWer_id];
 }
 
 inline bool RandomWalkerManager::isEnd(const uint32_t& RWer_id) {
