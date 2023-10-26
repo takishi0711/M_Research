@@ -91,6 +91,7 @@ private :
 
     // 再送制御用
     std::vector<std::thread> re_send_threads_;
+    uint32_t re_send_count = 0;
 
     // 乱数関連
     std::mt19937 mt{std::random_device{}()}; // メルセンヌ・ツイスタを用いた乱数生成
@@ -197,7 +198,7 @@ inline void ARWS::generateRWer() {
         RW_manager_.init(number_of_my_vertices * number_of_RW_execution);
 
         // 再送制御用スレッドの立ち上げ
-        re_send_threads_.push_back(std::thread(&ARWS::reSendThread, this));
+        // re_send_threads_.push_back(std::thread(&ARWS::reSendThread, this));
 
         measurement_.setStart();
 
@@ -213,14 +214,14 @@ inline void ARWS::generateRWer() {
 
                 uint32_t RWer_id = i * number_of_my_vertices + j;
                 // RWer ロスがあるかもしれないので一定期間で生成できる RWer 数を加算
-                if (RWer_id%1000 == 0) RW_manager_.addMaxSurvivngRWer();
+                // if (RWer_id%1000 == 0) RW_manager_.addMaxSurvivngRWer();
 
                 // 生成スピード調整
-                RW_manager_.lockWhileOver();
+                // RW_manager_.lockWhileOver();
                 
                 // 歩数を生成
                 uint16_t life = RW_config_.getRWerLife();
-                std::cout << "start life: " << life << std::endl; 
+                // std::cout << "start life: " << life << std::endl; 
 
                 // RWer を生成
                 // RandomWalker RWer = RandomWalker(node_id, graph_.getDegree(node_id), RWer_id, hostip_, RW_config_.getRWerLife());
@@ -239,8 +240,8 @@ inline void ARWS::generateRWer() {
                 executeRandomWalk(std::move(RWer_ptr));
 
                 // debug
-                std::cout << "generated RWer_id: " << RWer_id << std::endl;
-                std::this_thread::sleep_for(std::chrono::seconds(10));
+                // std::cout << "generated RWer_id: " << RWer_id << std::endl;
+                // std::this_thread::sleep_for(std::chrono::seconds(10));
 
             }
         }
@@ -310,6 +311,7 @@ inline void ARWS::reSendThread() {
 
                 time_per_step = RWer_life_time_sum / RWer_life_sum;
                 if (RW_manager_.getRWerLifeTimeNow(*it) > time_per_step * RW_manager_.getRWerLife(*it)) { // 時間切れで再送
+                    re_send_count++;
                     re_generate_threads.push_back(std::thread([&]() {
                         // 生成スピード調整
                         RW_manager_.lockWhileOver();
@@ -344,15 +346,15 @@ inline void ARWS::executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr) {
     while (1) {
 
         // debug
-        std::cout << "executeRandomWalk start" << std::endl;
-        RWer_ptr->printRWer();
+        // std::cout << "executeRandomWalk start" << std::endl;
+        // RWer_ptr->printRWer();
 
         uint64_t current_node = RWer_ptr->getCurrentNode(); // 現在頂点
 
         if (graph_.hasVertex(current_node)) { // 元グラフのデータを参照して RW
 
             // debug
-            std::cout << "my graph" << std::endl;
+            // std::cout << "my graph" << std::endl;
 
             // 現在頂点の次数情報を RWer に入力
             RWer_ptr->setCurrentDegree(graph_.getDegree(current_node));
@@ -383,10 +385,10 @@ inline void ARWS::executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr) {
                 uint64_t next_node = graph_.getNextNode(current_node, next_index);
 
                 // debug
-                std::cout << "next_index: " << next_index << ", next_node: " << next_node << std::endl; 
-                std::cout << std::endl;
-                std::cout << std::endl;
-                std::cout << std::endl;
+                // std::cout << "next_index: " << next_index << ", next_node: " << next_node << std::endl; 
+                // std::cout << std::endl;
+                // std::cout << std::endl;
+                // std::cout << std::endl;
 
                 RWer_ptr->updateRWer(next_node, graph_.getHostId(next_node), 0, next_index, INF);
 
@@ -395,12 +397,12 @@ inline void ARWS::executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr) {
         } else { // キャッシュデータを参照して RW
 
             // debug
-            std::cout << "cache" << std::endl;
+            // std::cout << "cache" << std::endl;
 
             // 現在頂点の次数情報があるか確認
             if (!cache_.hasDegree(current_node)) { // 次数情報がない (元グラフの他サーバ隣接ノードの初期状態)
                 // debug
-                std::cout << "motolinsetu" << std::endl; 
+                // std::cout << "motolinsetu" << std::endl; 
 
                 RWer_ptr->inputSendFlag(true);
                 send_queue_[graph_.getHostId(current_node)].push(std::move(RWer_ptr));
@@ -455,40 +457,42 @@ inline void ARWS::endRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr) {
     RWer_ptr->inputMessageID(DEAD_SEND);
 
     // debug
-    std::cout << "end RWer" << std::endl;
-    RWer_ptr->printRWer();
+    // std::cout << "end RWer" << std::endl;
+    // RWer_ptr->printRWer();
 
-    // RWer が通ってきたサーバの集合を入手
-    std::unordered_set<uint64_t> ip_set = RWer_ptr->getHostGroup();
+    // // RWer が通ってきたサーバの集合を入手
+    // std::unordered_set<uint64_t> ip_set = RWer_ptr->getHostGroup();
 
-    // RWer のコピー用の文字列配列
-    char RWer_str[MESSAGE_MAX_LENGTH];
-    RWer_ptr->writeMessage(RWer_str);
+    // // RWer のコピー用の文字列配列
+    // char RWer_str[MESSAGE_MAX_LENGTH];
+    // RWer_ptr->writeMessage(RWer_str);
 
-    // それぞれのサーバへ送信 (自分のサーバへは送信せずここで処理)
-    for (uint64_t ip : ip_set) {
-        std::unique_ptr<RandomWalker> RWer_ptr_cp(new RandomWalker(RWer_str));
+    // // それぞれのサーバへ送信 (自分のサーバへは送信せずここで処理)
+    // for (uint64_t ip : ip_set) {
+    //     std::unique_ptr<RandomWalker> RWer_ptr_cp(new RandomWalker(RWer_str));
 
-        if (ip == hostip_) {
-            checkRWer(std::move(RWer_ptr_cp));
-        } else {
-            send_queue_[ip].push(std::move(RWer_ptr_cp));
-        }
-    }
+    //     if (ip == hostip_) {
+    //         checkRWer(std::move(RWer_ptr_cp));
+    //     } else {
+    //         send_queue_[ip].push(std::move(RWer_ptr_cp));
+    //     }
+    // }
+
+    send_queue_[RWer_ptr->getHostID()].push(std::move(RWer_ptr));
 }
 
 inline void ARWS::checkRWer(std::unique_ptr<RandomWalker>&& RWer_ptr) {
     // debug
-    std::cout << "checkRWer" << std::endl;
+    // std::cout << "checkRWer" << std::endl;
 
     // RWer の起点サーバがここだったら終了時間記録
     if (RWer_ptr->getHostID() == hostip_) {
-        std::cout << "endatstartserver" << std::endl;
+        // std::cout << "endatstartserver" << std::endl;
         RW_manager_.setEndTime(RWer_ptr->getRWerID());
     }
 
     // debug 
-    std::cout << "not host server of RWer" << std::endl;
+    // std::cout << "not host server of RWer" << std::endl;
 
     // RWer の経路情報をキャッシュに登録
     cache_.addRWer(std::move(RWer_ptr), graph_);
@@ -689,6 +693,10 @@ inline void ARWS::sendToStartManager() {
     for (auto& [ip, q] : send_queue_) {
         std::cout << ip << ": " << q.getSize() << std::endl;   
     }
+    std::cout << "re_send_count: " << re_send_count << std::endl;
+    std::cout << "my edges num: " << graph_.getEdgeCount() << std::endl;
+    std::cout << "cache edges num: " << cache_.getEdgeCount() << std::endl;
+    std::cout << "all edges: " << graph_.getEdgeCount() + cache_.getEdgeCount() << std::endl;
 
     std::this_thread::sleep_for(std::chrono::seconds(5));
     {
@@ -710,10 +718,12 @@ inline void ARWS::sendToStartManager() {
         connect(sockfd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)); // ソケット, アドレスポインタ, アドレスサイズ
 
         // データ送信 (hostip: 4B, end_count: 4B, all_execution_time: 8B)
-        char message[1024];
-        memcpy(message, &hostip_, sizeof(uint32_t));
-        memcpy(message + sizeof(uint32_t), &end_count, sizeof(uint32_t));
-        memcpy(message + sizeof(uint32_t) + sizeof(uint32_t), &execution_time, sizeof(double));
+        char message[MESSAGE_MAX_LENGTH];
+        int idx = 0;
+        memcpy(message + idx, &hostip_, sizeof(uint32_t)); idx += sizeof(uint32_t);
+        memcpy(message + idx, &end_count, sizeof(uint32_t)); idx += sizeof(uint32_t);
+        memcpy(message + idx, &execution_time, sizeof(double)); idx += sizeof(double);
+        memcpy(message + idx, &re_send_count, sizeof(uint32_t)); idx += sizeof(uint32_t);
         send(sockfd, message, sizeof(message), 0); // 送信
 
         // ソケットクローズ

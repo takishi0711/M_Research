@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <random>
 #include <algorithm>
+#include <stdexcept>
 
 #include "param.hpp"
 
@@ -48,6 +49,9 @@ public :
     // 頂点 u, v を受け取り, u[x] = v の x を返す (index を返す)
     // 頂点 u が自分のサーバのものでない場合は INF を返す
     uint64_t indexOfUV(const uint64_t& node_id_u, const uint64_t& node_id_v);
+
+    // グラフのエッジカウント 
+    uint32_t getEdgeCount();
     
 
 private :
@@ -111,11 +115,21 @@ inline std::vector<uint64_t> Graph::getMyVertices() {
 }
 
 inline uint32_t Graph::getHostId(const uint64_t& node_id) {
-    return vertices_host_id_.at(node_id);
+    try {
+        return vertices_host_id_.at(node_id);
+    } catch (std::out_of_range& oor) {
+        std::cerr << "graph getHostId node_id: " << node_id << std::endl;
+        exit(1);
+    }
 }
 
 inline uint64_t Graph::getDegree(const uint64_t& node_id) {
-    return degree_.at(node_id);
+    try {
+        return degree_.at(node_id);
+    } catch (std::out_of_range& oor) {
+        std::cerr << "graph getDegree node_id: " << node_id << std::endl;
+        exit(1);
+    }
 }
 
 inline uint64_t Graph::getNextNode(const uint64_t& current_node, const uint64_t& next_index) {
@@ -124,7 +138,13 @@ inline uint64_t Graph::getNextNode(const uint64_t& current_node, const uint64_t&
         std::uniform_int_distribution<int> rand_int(0, degree_[current_node] - 1);
         return adjacency_list_.at(current_node)[rand_int(mt)];
     }
-    return adjacency_list_.at(current_node)[next_index];
+
+    try {
+        return adjacency_list_.at(current_node)[next_index];
+    } catch (std::out_of_range& oor) {
+        std::cerr << "graph getNextNode current_node: " << current_node << std::endl;
+        exit(1);
+    }
 }
 
 inline bool Graph::hasVertex(const uint64_t& node_id) {
@@ -139,4 +159,12 @@ inline uint64_t Graph::indexOfUV(const uint64_t& node_id_u, const uint64_t& node
     }
     uint64_t idx = std::lower_bound(adjacency_list_[node_id_u].begin(), adjacency_list_[node_id_u].end(), node_id_v) - adjacency_list_[node_id_u].begin();
     return idx;
+}
+
+inline uint32_t Graph::getEdgeCount() {
+    uint32_t count = 0;
+    for (auto lis : adjacency_list_) {
+        count += lis.second.size();
+    }
+    return count;
 }

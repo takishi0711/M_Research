@@ -131,7 +131,7 @@ inline void StartManager::sendStart(std::ofstream& ofs_time, std::ofstream& ofs_
         sendto(sockfd, message, MESSAGE_LENGTH, 0, (struct sockaddr *)&addr, sizeof(addr)); // 送信
 
         // debug
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        // std::this_thread::sleep_for(std::chrono::seconds(5));
     } 
 
     // ソケットクローズ

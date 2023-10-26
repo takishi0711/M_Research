@@ -4,6 +4,7 @@
 #include <unordered_set>
 #include <shared_mutex>
 #include <vector>
+#include <stdexcept>
 
 #include "graph.hpp"
 #include "random_walker.hpp"
@@ -48,6 +49,9 @@ public :
     // インデックス情報を登録
     void registerIndex(const uint32_t& node_id_u, const uint32_t& node_id_v, const uint32_t& index_num);
 
+    // キャッシュのエッジカウント 
+    uint32_t getEdgeCount();
+
 private :
 
     // キャッシュ情報
@@ -73,7 +77,14 @@ inline uint32_t Cache::getDegree(const uint32_t& node_id) {
         // std::shared_lock<std::shared_mutex> lock(mtx_node_cache_[node_id]);
         std::shared_lock<std::shared_mutex> lock(mtx_cache_degree_);
 
-        return degree_.at(node_id);
+        try {
+
+            return degree_.at(node_id);
+
+        } catch (std::out_of_range& oor) {
+            std::cerr << "cache getDegree node_id: " << node_id << std::endl;
+            exit(1);
+        }
     }
 }
 
@@ -94,13 +105,21 @@ inline uint32_t Cache::getHostId(const uint32_t& node_id) {
         // std::shared_lock<std::shared_mutex> lock(mtx_node_cache_[node_id]);
         std::shared_lock<std::shared_mutex> lock(mtx_cache_host_id_);
 
-        return host_id_.at(node_id);
+        try {
+
+            return host_id_.at(node_id);
+
+        } catch (std::out_of_range& oor) {
+            std::cerr << "cache getHostId node_id: " << node_id << std::endl;
+            exit(1);
+        }
+
     }
 }
 
 inline void Cache::addRWer(std::unique_ptr<RandomWalker>&& RWer_ptr, Graph& graph) {
     // debug
-    std::cout << "addRWer" << std::endl;
+    // std::cout << "addRWer" << std::endl;
 
     uint16_t path_length = 0;
     std::vector<uint64_t> path; // path: (頂点, ホストID, 次数, indexuv, indexvu), (), (), ... 
@@ -115,11 +134,11 @@ inline void Cache::addRWer(std::unique_ptr<RandomWalker>&& RWer_ptr, Graph& grap
         addEdge(path, i*5, (i+1)*5, graph);
 
         // debug 
-        std::cout << i << std::endl;
+        // std::cout << i << std::endl;
     }
 
     // debug 
-    std::cout << "addRWer ok" << std::endl;
+    // std::cout << "addRWer ok" << std::endl;
 }
 
 inline void Cache::addEdge(const std::vector<uint64_t>& path, const uint32_t& node_u_idx, const uint32_t& node_v_idx, Graph& graph) {
@@ -195,4 +214,8 @@ inline void Cache::registerIndex(const uint32_t& node_id_u, const uint32_t& node
     // std::cout << "registerIndex" << std::endl;
 
     adjacency_list_.putIndex(node_id_u, index_num, node_id_v);
+}
+
+inline uint32_t Cache::getEdgeCount() {
+    return adjacency_list_.getSize();
 }

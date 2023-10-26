@@ -4,6 +4,7 @@
 #include <list>
 #include <unordered_map>
 #include <mutex>
+#include <iostream>
 
 #include "param.hpp"
 
@@ -46,6 +47,10 @@ public:
     // index を登録
     // capacity をオーバーしていれば一番最後に使われた index を削除
     void putIndex(const uint32_t& node_ID_u, const uint32_t& index_num, const uint32_t& node_ID_v);
+
+    // debug 用
+    void printList();
+    uint32_t getSize();
 
 private:
 
@@ -104,4 +109,15 @@ inline void LRU::putIndex(const uint32_t& node_ID_u, const uint32_t& index_num, 
             que_.pop_back();
         }
     }
+}
+
+inline void LRU::printList() {
+    for (auto it = que_.begin(); it != que_.end(); it++) {
+        auto [node_u, index, node_v] = *it;
+        std::cout << node_u << " " << index << " " << node_v << std::endl;
+    }
+}
+
+inline uint32_t LRU::getSize() {
+    return que_.size();
 }

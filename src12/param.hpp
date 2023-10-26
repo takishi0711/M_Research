@@ -27,10 +27,10 @@ const uint32_t INF = 1001002003;
 const uint32_t MAX_PATH_LENGTH = 50;
 
 // 生存 RWer の最大数
-const uint32_t MAX_SURVIVING_RWER = 500;
+const uint32_t MAX_SURVIVING_RWER = 1000;
 
 // パラメタ (メッセージ長)
 const uint32_t MESSAGE_MAX_LENGTH = 8950;
 
 // キャッシュサイズの最大値
-const uint32_t MAX_CACHE_SIZE = 100000;
+const uint32_t MAX_CACHE_SIZE = 1000000;

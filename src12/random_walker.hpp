@@ -189,7 +189,7 @@ inline RandomWalker::RandomWalker(const uint64_t& source_node, const uint64_t& n
     path_[2] = node_degree; RWer_size_ += 8;
     path_[3] = 0; RWer_size_ += 8;
     path_[4] = 0; RWer_size_ += 8;
-    
+
     decrementRWerLife();
 }
 
@@ -316,7 +316,7 @@ inline uint64_t RandomWalker::getPrevNode() {
 
 inline uint64_t RandomWalker::getHostID() {
     // debug
-    std::cout << "getHostID" << std::endl;
+    // std::cout << "getHostID" << std::endl;
 
     return (path_[0]>>16);
 }

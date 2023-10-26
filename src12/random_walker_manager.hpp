@@ -131,7 +131,7 @@ inline void RandomWalkerManager::setStartTime(const uint32_t& RWer_id) {
 
 inline void RandomWalkerManager::setEndTime(const uint32_t& RWer_id) {
     // debug
-    std::cout << "SetEndTime" << std::endl;
+    // std::cout << "SetEndTime" << std::endl;
 
     if (end_flag_per_RWer_id_[RWer_id] == true) {
         return;
