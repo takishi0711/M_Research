@@ -19,7 +19,7 @@
 // メッセージ ID について, 0 -> 生存した RWer, 1 -> 終了した RWer, 2 -> 複数の RWer が入っているパケット, 3 -> 実験開始の合図, 4 -> 実験終了の合図
 // 
 // flag_ (8bit): 
-// 一歩前で通信が発生したか: 1bit, next_index に値が入っているか: 1bit, あまり : 6bit
+// 一歩前で通信が発生したか: 1bit, next_index に値が入っているか: 1bit, 全体を通して通信が発生したか: 1bit, あまり : 5bit
 // 
 // RWer_size_ (16bit):
 // RWer 単体のメモリサイズ
@@ -66,6 +66,9 @@ public :
 
     // 通信が発生したときに flag を入れる
     void inputSendFlag(bool flag); 
+
+    // 全体を通して通信が発生したか
+    bool isSendedAll();
 
     // 一歩前で通信が発生したか (true: した, false: してない)
     bool isSended();
@@ -151,6 +154,7 @@ public :
     // デバッグ用, RWer の出力
     void printRWer();
 
+
 private :
 
     uint8_t ver_id_ = 0; 
@@ -233,6 +237,14 @@ inline bool RandomWalker::isEnd() {
 inline void RandomWalker::inputSendFlag(bool flag) {
     flag_ &= ~(1<<7);
     flag_ |= (flag<<7);
+
+    if (flag) {
+        flag_ |= (1<<5);
+    }
+}
+
+inline bool RandomWalker::isSendedAll() {
+    return (flag_>>5)&1;
 }
 
 inline bool RandomWalker::isSended() {

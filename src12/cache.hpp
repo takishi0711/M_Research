@@ -10,6 +10,7 @@
 #include "random_walker.hpp"
 #include "param.hpp"
 #include "cache_helper.hpp"
+#include "cache_helper2.hpp"
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -58,7 +59,8 @@ private :
     std::unordered_map<uint32_t, uint32_t> degree_; // 他サーバが持ち主となるノードの次数
     std::unordered_map<uint32_t, uint32_t> host_id_; // 持ち主が他サーバの頂点に関する, 持ち主のホストID {ノード ID : ホストID (ノードの持ち主)}
     // std::unordered_map<uint32_t, std::unordered_map<uint32_t, uint32_t>> adjacency_list_; // 他サーバの隣接リスト {ノード ID : {index : ノード ID}}
-    LRU adjacency_list_; // 他サーバの隣接リスト
+    // LRU adjacency_list_; // 他サーバの隣接リスト
+    SimpleCache adjacency_list_;
 
     //　mutex
     std::shared_mutex mtx_cache_degree_; // 次数用

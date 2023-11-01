@@ -6,6 +6,8 @@
 #include <condition_variable>
 #include <memory>
 #include <unordered_map>
+#include <vector>
+#include <utility>
 
 #include "random_walker.hpp"
 #include "graph.hpp"
@@ -26,6 +28,24 @@ public :
             bool queue_empty = message_queue_.empty();
 
             message_queue_.push(std::move(message));
+
+            if (queue_empty) { // 空キューでなくなった通知
+                cv_message_queue_.notify_all();
+            }
+
+        }
+    }
+
+    void push(std::vector<std::unique_ptr<RandomWalker>>& RWer_ptr_vec) {
+        { // 排他制御
+            std::lock_guard<std::mutex> lk(mtx_message_queue_);
+
+            bool queue_empty = message_queue_.empty();
+
+            uint32_t vec_size = RWer_ptr_vec.size();
+            for (int i = 0; i < vec_size; i++) {
+                message_queue_.push(std::move(RWer_ptr_vec[i]));
+            }
 
             if (queue_empty) { // 空キューでなくなった通知
                 cv_message_queue_.notify_all();
@@ -89,6 +109,29 @@ public :
             }
 
             return now_length;
+        }
+    }
+
+    // message_queue_ から RWer をまとめて取り出す
+    // vector に格納
+    // 入れた数を返す
+    uint32_t pop(std::vector<std::unique_ptr<RandomWalker>>& RWer_ptr_vec) {
+        { // 排他制御
+            std::unique_lock<std::mutex> lk(mtx_message_queue_);
+
+            // RWer_Queue が空じゃなくなるまで待機
+            cv_message_queue_.wait(lk, [&]{ return !message_queue_.empty(); });
+
+            uint32_t vec_size = message_queue_.size();
+            RWer_ptr_vec.reserve(vec_size);
+
+            while (message_queue_.size()) {
+                std::unique_ptr<RandomWalker> RWer_ptr = std::move(message_queue_.front());
+                message_queue_.pop();
+                RWer_ptr_vec.push_back(std::move(RWer_ptr));
+            }
+
+            return vec_size;
         }
     }
 

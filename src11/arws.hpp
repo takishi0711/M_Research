@@ -98,7 +98,7 @@ private :
     const uint32_t SEND_PER_PORT = 1;
     const uint32_t RECV_PER_PORT = 1;
     const uint32_t PROC_MESSAGE_PER_PORT = 1;
-    const uint32_t GENERATE_RWER = 1;
+    const uint32_t GENERATE_RWER = 20;
 
     // パラメタ (メッセージ長)
     const uint32_t MESSAGE_MAX_LENGTH = 1450;

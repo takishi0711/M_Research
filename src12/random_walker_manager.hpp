@@ -5,6 +5,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <iostream>
+#include <atomic>
 
 #include "param.hpp"
 
@@ -93,7 +94,8 @@ private :
     uint32_t max_surviving_RWer_now = MAX_SURVIVING_RWER;
 
     uint32_t start_count_ = 0;
-    uint32_t end_count_ = 0;
+    // uint32_t end_count_ = 0;
+    std::atomic<uint32_t> end_count_ = 0;
     std::mutex mtx_start_count_;
     std::mutex mtx_end_count_;
     std::condition_variable cv_start_count_;
@@ -140,7 +142,8 @@ inline void RandomWalkerManager::setEndTime(const uint32_t& RWer_id) {
     end_flag_per_RWer_id_[RWer_id] = true;
     end_time_per_RWer_id_[RWer_id] = std::chrono::system_clock::now();
 
-    addEndCount();
+    // addEndCount();
+    end_count_++;
 }
 
 inline void RandomWalkerManager::addEndCount() {
@@ -169,6 +172,14 @@ inline uint32_t RandomWalkerManager::getRWerAll() {
 
 inline uint32_t RandomWalkerManager::getEndcnt() {
     return end_count_;
+
+    // uint32_t end_count = 0;
+    // for (int32_t id = 0; id < RWer_all_num_; id++) {
+    //     if (end_flag_per_RWer_id_[id]) {
+    //         end_count++;
+    //     }
+    // }
+    // return end_count;
 }
 
 inline bool RandomWalkerManager::isStart(const uint32_t& RWer_id) {
