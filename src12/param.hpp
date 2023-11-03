@@ -39,7 +39,7 @@ const uint32_t MAX_SURVIVING_RWER = 1000;
 const uint32_t MESSAGE_MAX_LENGTH = 8950;
 
 // キャッシュサイズの最大値
-const uint32_t MAX_CACHE_SIZE = 1000000;
+const uint32_t MAX_CACHE_SIZE = 100000;
 
 // RW の実行ステップ (最初の RW_STEP_1 % を実行した後少しスリープ)
 const uint32_t RW_STEP_1 = 1;
@@ -48,7 +48,7 @@ const uint32_t RW_STEP_1 = 1;
 const uint32_t RW_STEP_2 = 100;
 
 // cache を使うかどうか
-bool USE_CACHE = true;
+bool USE_CACHE = false;
 
 // RWer 生成の sleep を使うかどうか
 const bool GENERATE_SLEEP_FLAG = true;

@@ -18,6 +18,8 @@ public :
     // 実行時間の取得 (秒)
     double getExecutionTime();
 
+    double getNowTime();
+
 private :
     std::chrono::system_clock::time_point start_server_; // 実行開始時間
     std::chrono::system_clock::time_point end_server_; // 実行終了時間
@@ -39,6 +41,12 @@ inline void Measurement::setEnd() {
 
 inline double Measurement::getExecutionTime() {
     double execution_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_server_ - start_server_).count();
+    execution_time /= 1000; // 秒変換
+    return execution_time;
+}
+
+inline double Measurement::getNowTime() {
+    double execution_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start_server_).count();
     execution_time /= 1000; // 秒変換
     return execution_time;
 }

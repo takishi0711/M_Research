@@ -316,11 +316,18 @@ inline void ARWS::generateRWer() {
         //     }
         // }
 
-        measurement_.setEnd();
+        // measurement_.setEnd();
 
-        std::cout << measurement_.getExecutionTime() << std::endl;
+        std::cout << measurement_.getNowTime() << std::endl;
+
+        while (1) {
+            std::this_thread::sleep_for(std::chrono::seconds(20));
+            std::cout << measurement_.getNowTime() << " " << RW_manager_.getEndcnt() << std::endl;
+        }
+        
 
         // PROC_MESSAGE_PER_PORT++;
+        // sendToStartManager();
     }
 }
 
@@ -431,7 +438,7 @@ inline void ARWS::reSendThread() {
         // }
         // re_generate_threads.clear();
         
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 }
 
