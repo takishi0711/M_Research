@@ -3,9 +3,12 @@
 #include <stdint.h>
 #include <utility>
 
-typedef uint32_t vertex_id_t;
+typedef uint64_t vertex_id_t;
 typedef uint64_t edge_id_t;
 typedef uint64_t walker_id_t;
+typedef uint32_t host_id_t;
+typedef uint16_t worker_id_t;
+typedef uint64_t index_t;
 
 struct EmptyData
 {
@@ -44,6 +47,26 @@ struct Edge <EmptyData>
     Edge() {}
     Edge(vertex_id_t _src, vertex_id_t _dst) : src(_src), dst(_dst) {}
     bool friend operator == (const Edge<EmptyData> &a, const Edge<EmptyData> &b)
+    {
+        return (a.src == b.src
+            && a.dst == b.dst
+        );
+    }
+    void transpose()
+    {
+        std::swap(src, dst);
+    }
+};
+
+struct Edge_dstIp
+{
+    uint32_t src;
+    uint32_t dst;
+    uint8_t dst_ip;
+
+    Edge_dstIp() {}
+    Edge_dstIp(vertex_id_t _src, vertex_id_t _dst, uint8_t _dst_ip) : src(_src), dst(_dst), dst_ip(_dst_ip) {}
+    bool friend operator == (const Edge_dstIp &a, const Edge_dstIp &b)
     {
         return (a.src == b.src
             && a.dst == b.dst

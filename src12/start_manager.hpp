@@ -87,7 +87,7 @@ inline StartManager::StartManager(const uint32_t& split_num) {
 
     // worker の IP アドレス情報を入手
     std::ifstream reading_file;
-    reading_file.open("../graph_data/server.txt", std::ios::in);
+    reading_file.open("server.txt", std::ios::in);
     std::string reading_line_buffer;
     while (std::getline(reading_file, reading_line_buffer)) {
         worker_ip_.emplace_back(inet_addr(reading_line_buffer.c_str()));

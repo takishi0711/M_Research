@@ -11,6 +11,7 @@
 #include "param.hpp"
 #include "cache_helper.hpp"
 #include "cache_helper2.hpp"
+#include "type.hpp"
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -21,51 +22,54 @@ class Cache {
 
 public :
 
+    void init();
+
     // ノードに対するキャッシュの次数情報を入手
-    uint32_t getDegree(const uint32_t& node_id);
+    index_t getDegree(const vertex_id_t& node_id);
 
     // キャッシュの次数存在確認
-    bool hasDegree(const uint32_t& node_id);
+    bool hasDegree(const vertex_id_t& node_id);
 
     // 隣接リスト情報内の index 存在確認
     // 存在したら next node ID を返す
     // 存在しなかったら INF を返す
-    uint32_t getNextNode(const uint32_t& node_id, const uint32_t& index_num);
+    vertex_id_t getNextNode(const vertex_id_t& node_id, const index_t& index_num);
 
     // ノードの持ち主の ホストIDを入手
-    uint32_t getHostId(const uint32_t& node_id);
+    host_id_t getHostId(const vertex_id_t& node_id);
 
     // RWer の経路情報からグラフデータをキャッシュとして保存
     void addRWer(std::unique_ptr<RandomWalker>&& RWer_ptr, Graph& graph);
 
     // エッジをキャッシュに登録
-    void addEdge(const std::vector<uint64_t>& path, const uint32_t& node_u_idx, const uint32_t& node_v_idx, Graph& graph);
+    void addEdge(const std::vector<vertex_id_t>& path, const index_t& node_u_idx, const index_t& node_v_idx, Graph& graph);
 
     // ホストID 情報を登録
-    void registerHostId(const uint32_t& node_id, const uint32_t& host_id);
+    void registerHostId(const vertex_id_t& node_id, const host_id_t& host_id);
 
     // 次数情報を登録
-    void registerDegree(const uint32_t& node_id, const uint32_t& degree);
+    void registerDegree(const vertex_id_t& node_id, const index_t& degree);
 
     // インデックス情報を登録
-    void registerIndex(const uint32_t& node_id_u, const uint32_t& node_id_v, const uint32_t& index_num);
+    void registerIndex(const vertex_id_t& node_id_u, const vertex_id_t& node_id_v, const index_t& index_num);
 
     // キャッシュのエッジカウント 
-    uint32_t getEdgeCount();
+    edge_id_t getEdgeCount();
 
 private :
 
     // キャッシュ情報
-    std::unordered_map<uint32_t, uint32_t> degree_; // 他サーバが持ち主となるノードの次数
-    std::unordered_map<uint32_t, uint32_t> host_id_; // 持ち主が他サーバの頂点に関する, 持ち主のホストID {ノード ID : ホストID (ノードの持ち主)}
+    std::vector<index_t> degree_; // 他サーバが持ち主となるノードの次数
+    std::vector<host_id_t> host_id_; // 持ち主が他サーバの頂点に関する, 持ち主のホストID {ノード ID : ホストID (ノードの持ち主)}
     // std::unordered_map<uint32_t, std::unordered_map<uint32_t, uint32_t>> adjacency_list_; // 他サーバの隣接リスト {ノード ID : {index : ノード ID}}
     // LRU adjacency_list_; // 他サーバの隣接リスト
     SimpleCache adjacency_list_;
+    std::vector<bool> has_v_;
 
     //　mutex
-    std::shared_mutex mtx_cache_degree_; // 次数用
-    std::shared_mutex mtx_cache_adj_; // 隣接リスト用
-    std::shared_mutex mtx_cache_host_id_; // hostID 用
+    // std::shared_mutex mtx_cache_degree_; // 次数用
+    // std::shared_mutex mtx_cache_adj_; // 隣接リスト用
+    // std::shared_mutex mtx_cache_host_id_; // hostID 用
 
 };
 
@@ -74,49 +78,60 @@ private :
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
-inline uint32_t Cache::getDegree(const uint32_t& node_id) {
-    {
-        // std::shared_lock<std::shared_mutex> lock(mtx_node_cache_[node_id]);
-        std::shared_lock<std::shared_mutex> lock(mtx_cache_degree_);
-
-        try {
-
-            return degree_.at(node_id);
-
-        } catch (std::out_of_range& oor) {
-            std::cerr << "cache getDegree node_id: " << node_id << std::endl;
-            exit(1);
-        }
-    }
+inline void Cache::init() {
+    degree_.resize(VERTEX_SIZE);
+    host_id_.resize(VERTEX_SIZE);
+    has_v_.resize(VERTEX_SIZE);
+    adjacency_list_.init();
 }
 
-inline bool Cache::hasDegree(const uint32_t& node_id) {
-    {
-        std::shared_lock<std::shared_mutex> lock(mtx_cache_degree_);
+inline index_t Cache::getDegree(const vertex_id_t& node_id) {
+    // {
+    //     // std::shared_lock<std::shared_mutex> lock(mtx_node_cache_[node_id]);
+    //     std::shared_lock<std::shared_mutex> lock(mtx_cache_degree_);
 
-        return degree_.contains(node_id);
-    }
+    //     try {
+
+    //         return degree_[node_id];
+
+    //     } catch (std::out_of_range& oor) {
+    //         std::cerr << "cache getDegree node_id: " << node_id << std::endl;
+    //         exit(1);
+    //     }
+    // }
+
+    return degree_[node_id];
 }
 
-inline uint32_t Cache::getNextNode(const uint32_t& node_id, const uint32_t& index_num) {
+inline bool Cache::hasDegree(const vertex_id_t& node_id) {
+    // {
+    //     std::shared_lock<std::shared_mutex> lock(mtx_cache_degree_);
+
+    //     return degree_.contains(node_id);
+    // }
+    return has_v_[node_id];
+}
+
+inline vertex_id_t Cache::getNextNode(const vertex_id_t& node_id, const index_t& index_num) {
     return adjacency_list_.getNextNode(node_id, index_num);
 }
 
-inline uint32_t Cache::getHostId(const uint32_t& node_id) {
-    {
-        // std::shared_lock<std::shared_mutex> lock(mtx_node_cache_[node_id]);
-        std::shared_lock<std::shared_mutex> lock(mtx_cache_host_id_);
+inline host_id_t Cache::getHostId(const vertex_id_t& node_id) {
+    // {
+    //     // std::shared_lock<std::shared_mutex> lock(mtx_node_cache_[node_id]);
+    //     std::shared_lock<std::shared_mutex> lock(mtx_cache_host_id_);
 
-        try {
+    //     try {
 
-            return host_id_.at(node_id);
+    //         return host_id_[node_id];
 
-        } catch (std::out_of_range& oor) {
-            std::cerr << "cache getHostId node_id: " << node_id << std::endl;
-            exit(1);
-        }
+    //     } catch (std::out_of_range& oor) {
+    //         std::cerr << "cache getHostId node_id: " << node_id << std::endl;
+    //         exit(1);
+    //     }
 
-    }
+    // }
+    return host_id_[node_id];
 }
 
 inline void Cache::addRWer(std::unique_ptr<RandomWalker>&& RWer_ptr, Graph& graph) {
@@ -143,7 +158,7 @@ inline void Cache::addRWer(std::unique_ptr<RandomWalker>&& RWer_ptr, Graph& grap
     // std::cout << "addRWer ok" << std::endl;
 }
 
-inline void Cache::addEdge(const std::vector<uint64_t>& path, const uint32_t& node_u_idx, const uint32_t& node_v_idx, Graph& graph) {
+inline void Cache::addEdge(const std::vector<vertex_id_t>& path, const index_t& node_u_idx, const index_t& node_v_idx, Graph& graph) {
     // debug
     // std::cout << "AddEdge" << std::endl;
 
@@ -169,55 +184,59 @@ inline void Cache::addEdge(const std::vector<uint64_t>& path, const uint32_t& no
     }
 }
 
-inline void Cache::registerHostId(const uint32_t& node_id, const uint32_t& host_id) {
+inline void Cache::registerHostId(const vertex_id_t& node_id, const host_id_t& host_id) {
     // debug
     // std::cout << "registerHostId" << std::endl;
 
-    bool exist = false;
+    // bool exist = false;
 
-    { // 共有ロックで存在だけ確認
-        std::shared_lock<std::shared_mutex> lock(mtx_cache_host_id_);
+    // { // 共有ロックで存在だけ確認
+    //     std::shared_lock<std::shared_mutex> lock(mtx_cache_host_id_);
 
-        if (host_id_.contains(node_id)) exist = true;
-    }
+    //     if (host_id_.contains(node_id)) exist = true;
+    // }
 
-    if (exist == false) { // 存在しない場合のみ占有ロック
-        {
-            std::lock_guard<std::shared_mutex> lock(mtx_cache_host_id_);
+    // if (exist == false) { // 存在しない場合のみ占有ロック
+    //     {
+    //         std::lock_guard<std::shared_mutex> lock(mtx_cache_host_id_);
 
-            host_id_[node_id] = host_id;
-        }
-    }
+    //         host_id_[node_id] = host_id;
+    //     }
+    // }
+    host_id_[node_id] = host_id;
 }
 
-inline void Cache::registerDegree(const uint32_t& node_id, const uint32_t& degree) {
+inline void Cache::registerDegree(const vertex_id_t& node_id, const index_t& degree) {
     // debug
     // std::cout << "registerDegree" << std::endl;
 
-    bool exist = false;
+    // bool exist = false;
 
-    { // 共有ロックで存在だけ確認
-        std::shared_lock<std::shared_mutex> lock(mtx_cache_degree_);
+    // { // 共有ロックで存在だけ確認
+    //     std::shared_lock<std::shared_mutex> lock(mtx_cache_degree_);
 
-        if (degree_.contains(node_id)) exist = true;
-    }
+    //     if (degree_.contains(node_id)) exist = true;
+    // }
 
-    if (exist == false) { // 存在しない場合のみ占有ロック
-        {
-            std::lock_guard<std::shared_mutex> lock(mtx_cache_degree_);
+    // if (exist == false) { // 存在しない場合のみ占有ロック
+    //     {
+    //         std::lock_guard<std::shared_mutex> lock(mtx_cache_degree_);
 
-            degree_[node_id] = degree;
-        }
-    }
+    //         degree_[node_id] = degree;
+    //     }
+    // }
+
+    degree_[node_id] = degree;
+    has_v_[node_id] = true;
 }
 
-inline void Cache::registerIndex(const uint32_t& node_id_u, const uint32_t& node_id_v, const uint32_t& index_num) {
+inline void Cache::registerIndex(const vertex_id_t& node_id_u, const vertex_id_t& node_id_v, const index_t& index_num) {
     // debug
     // std::cout << "registerIndex" << std::endl;
 
     adjacency_list_.putIndex(node_id_u, index_num, node_id_v);
 }
 
-inline uint32_t Cache::getEdgeCount() {
+inline edge_id_t Cache::getEdgeCount() {
     return adjacency_list_.getSize();
 }

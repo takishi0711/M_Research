@@ -2,8 +2,6 @@
 
 #include <random>
 
-#include "util.hpp"
-
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
@@ -22,11 +20,15 @@ public :
     double getAlpha();
 
     // α の値から
-    uint16_t getRWerLife(StdRandNumGenerator& gen);
+    uint16_t getRWerLife();
 
 private :
     uint32_t number_of_RW_execution_ = 10000; // RW の実行回数
     double alpha_ = 0.15; // RW の終了確率
+
+    // 乱数関連
+    std::mt19937 mt{std::random_device{}()}; // メルセンヌ・ツイスタを用いた乱数生成
+    std::uniform_real_distribution<double>  rand_double{0, 1.0}; // 0~1のランダムな値
 
 };
 
@@ -46,9 +48,9 @@ inline double RandomWalkConfig::getAlpha() {
     return alpha_;
 }
 
-inline uint16_t RandomWalkConfig::getRWerLife(StdRandNumGenerator& gen) {
+inline uint16_t RandomWalkConfig::getRWerLife() {
     uint16_t life = 1;
-    while (gen.gen_float(1.0) > alpha_) life++;
+    while (rand_double(mt) > alpha_) life++;
     return life;
 }
 

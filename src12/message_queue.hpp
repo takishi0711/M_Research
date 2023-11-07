@@ -112,10 +112,10 @@ public :
         }
     }
 
-    // message_queue_ から RWer をまとめて取り出す
+    // message_queue_ から message をまとめて取り出す
     // vector に格納
     // 入れた数を返す
-    uint32_t pop(std::vector<std::unique_ptr<RandomWalker>>& RWer_ptr_vec) {
+    uint32_t pop(std::vector<std::unique_ptr<T>>& ptr_vec) {
         { // 排他制御
             std::unique_lock<std::mutex> lk(mtx_message_queue_);
 
@@ -123,12 +123,12 @@ public :
             cv_message_queue_.wait(lk, [&]{ return !message_queue_.empty(); });
 
             uint32_t vec_size = message_queue_.size();
-            RWer_ptr_vec.reserve(vec_size);
+            ptr_vec.reserve(vec_size);
 
             while (message_queue_.size()) {
-                std::unique_ptr<RandomWalker> RWer_ptr = std::move(message_queue_.front());
+                std::unique_ptr<T> ptr = std::move(message_queue_.front());
                 message_queue_.pop();
-                RWer_ptr_vec.push_back(std::move(RWer_ptr));
+                ptr_vec.push_back(std::move(ptr));
             }
 
             return vec_size;
