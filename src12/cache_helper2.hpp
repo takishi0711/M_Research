@@ -6,6 +6,7 @@
 #include <atomic>
 
 #include "param.hpp"
+#include "type.hpp"
 
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
@@ -80,17 +81,23 @@ inline void SimpleCache::putIndex(const vertex_id_t& node_ID_u, const index_t& i
         {
             std::lock_guard<std::shared_mutex> lock(mtx_cache_[node_ID_u]);
 
-            cache_[node_ID_u][index_num] = node_ID_v;
-            cache_size_++;
-            if (cache_size_ >= MAX_CACHE_SIZE) USE_CACHE = false;
+            if (!cache_[node_ID_u].contains(index_num)) {
+                cache_[node_ID_u][index_num] = node_ID_v;
+                cache_size_++;
+                if (cache_size_ >= MAX_CACHE_SIZE) {
+                    CHECK_FLAG = false;
+                    CACHE_GEN_FLAG = false;
+                }
+            }
         }
     }
 }
 
 inline uint32_t SimpleCache::getSize() {
-    uint32_t cnt = 0;
-    for (auto mp : cache_) {
-        cnt += mp.size();
-    }
-    return cnt;
+    // uint32_t cnt = 0;
+    // for (auto mp : cache_) {
+    //     cnt += mp.size();
+    // }
+    // return cnt;
+    return cache_size_;
 }

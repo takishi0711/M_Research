@@ -30,6 +30,9 @@ public :
     // コンストラクタ
     StartManager(const uint32_t& split_num);
 
+    // cache のための RW 実行合図
+    void sendStartCache();
+
     // 実験開始の合図
     void sendStart(std::ofstream& ofs_time, std::ofstream& ofs_rerun, const int32_t RW_num);
 
@@ -94,6 +97,118 @@ inline StartManager::StartManager(const uint32_t& split_num) {
     }
 
     split_num_ = split_num;
+}
+
+inline void StartManager::sendStartCache() {
+    {
+        // ソケットの生成
+        int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+        if (sockfd < 0) { // エラー処理
+            perror("socket");
+            exit(1); // 異常終了
+        }   
+
+        std::cout << "start cache" << std::endl;
+
+        for (int i = 0; i < split_num_; i++) {
+            // アドレスの生成
+            struct sockaddr_in addr; // 接続先の情報用の構造体(ipv4)
+            memset(&addr, 0, sizeof(struct sockaddr_in)); // memsetで初期化
+            addr.sin_family = AF_INET; // アドレスファミリ(ipv4)
+            addr.sin_port = htons(10000); // ポート番号, htons()関数は16bitホストバイトオーダーをネットワークバイトオーダーに変換
+            addr.sin_addr.s_addr = worker_ip_[i]; // IPアドレス, inet_addr()関数はアドレスの翻訳        
+
+            // メッセージ生成 (id: 1B, IPアドレス: 4B)
+            char message[MESSAGE_LENGTH];
+
+            // メッセージのヘッダ情報を書き込む
+            // バージョン: 4bit (0), 
+            // メッセージID: 4bit ,
+            uint8_t ver_id = CACHE_GEN; 
+            memcpy(message, &ver_id, sizeof(uint8_t));
+            memcpy(message + sizeof(ver_id), &hostip_, sizeof(hostip_));
+
+            // データ送信
+            sendto(sockfd, message, MESSAGE_LENGTH, 0, (struct sockaddr *)&addr, sizeof(addr)); // 送信
+
+            // debug
+            // std::this_thread::sleep_for(std::chrono::seconds(5));
+        } 
+
+        close(sockfd);
+    }
+
+    // split_num 個のサーバから終了報告を受け取る
+    {
+        int count = 0; // 終了の合図が来た回数
+        int sockfd = createTcpServerSocket(); // サーバソケットを生成 (TCP)
+
+        while (count < split_num_) {
+            // 接続待ち
+            std::cout << "wait" << std::endl;
+            struct sockaddr_in get_addr; // 接続相手のソケットアドレス
+            socklen_t len = sizeof(struct sockaddr_in); // 接続相手のアドレスサイズ
+            int connect = accept(sockfd, (struct sockaddr *)&get_addr, &len); // 接続待ちソケット, 接続相手のソケットアドレスポインタ, 接続相手のアドレスサイズ
+            if (connect < 0) { // エラー処理
+                perror("accept");
+                exit(1); // 異常終了
+            }       
+            std::cout << "connect" << std::endl;
+
+            char message[1024]; // 受信バッファ
+            memset(message, 0, sizeof(message)); // 受信バッファ初期化
+            recv(connect, message, sizeof(message), 0); // 受信 (hostip: 4B, execution_time: 8B)
+            
+            uint32_t* worker_ip = (uint32_t*)message;
+            double* execution_time = (double*)(message + sizeof(uint32_t));
+            std::cout << "worker_ip: " << *worker_ip << ", execution_time: " << *execution_time << std::endl;
+
+            close(connect); // acceptしたソケットをclose
+
+            count++;
+        }
+        close(sockfd);
+    }
+
+    // 全てのサーバで終了したことを伝える
+    {
+        // ソケットの生成
+        int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (sockfd < 0) { // エラー処理
+            perror("socket");
+            exit(1); // 異常終了
+        }
+
+        for (int i = 0; i < split_num_; i++) {
+            // ソケットの生成
+            int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+            if (sockfd < 0) { // エラー処理
+                perror("socket");
+                exit(1); // 異常終了
+            }
+
+            // アドレスの生成
+            struct sockaddr_in addr; // 接続先の情報用の構造体(ipv4)
+            memset(&addr, 0, sizeof(struct sockaddr_in)); // memsetで初期化
+            addr.sin_family = AF_INET; // アドレスファミリ(ipv4)
+            addr.sin_port = htons(9999); // ポート番号, htons()関数は16bitホストバイトオーダーをネットワークバイトオーダーに変換
+            addr.sin_addr.s_addr = worker_ip_[i]; // IPアドレス, inet_addr()関数はアドレスの翻訳
+
+            // ソケット接続要求
+            connect(sockfd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)); // ソケット, アドレスポインタ, アドレスサイズ
+
+            // データ送信 
+            char message[MESSAGE_LENGTH];
+            int idx = 0;
+
+            send(sockfd, message, sizeof(message), 0); // 送信
+            memcpy(message + idx, &hostip_, sizeof(uint32_t)); idx += sizeof(uint32_t);
+            
+        }
+
+        close(sockfd); 
+    }
+
 }
 
 inline void StartManager::sendStart(std::ofstream& ofs_time, std::ofstream& ofs_rerun, const int32_t RW_num) {

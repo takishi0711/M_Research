@@ -44,6 +44,11 @@ int main(int argc, char *argv[]) {
     StartManager start(split_num);
 
     for (int i = 0; i < cnt; i++) {
+
+        // start.sendStartCache();
+
+        // std::this_thread::sleep_for(std::chrono::seconds(15));
+
         start.sendStart(ofs_time, ofs_rerun, RW_num);
 
         // if (RW_num == 100000) {

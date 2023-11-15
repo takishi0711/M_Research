@@ -60,6 +60,7 @@ private :
     std::vector<std::vector<vertex_id_t>> adjacency_list_; // 自サーバの隣接リスト {ノード ID : 隣接リスト}
     std::vector<index_t> degree_; // 自サーバが持ち主となるノードの次数
     std::vector<bool> has_v_;
+    edge_id_t edge_count_;
 
 };
 
@@ -73,6 +74,7 @@ inline void Graph::init(const std::string& dir_path, const std::string& host_id_
     Edge_dstIp *read_edges;
     edge_id_t read_e_num;
     read_graph(graph_file_path.c_str(), read_edges, read_e_num);
+    edge_count_ = read_e_num;
 
     // node_id の最大値を確認
     vertex_id_t mx_id = 0;
@@ -145,6 +147,7 @@ inline vertex_id_t Graph::getNextNode(const vertex_id_t& current_node, const ver
 }
 
 inline bool Graph::hasVertex(const vertex_id_t& node_id) {
+    assert(node_id < VERTEX_SIZE);
     return has_v_[node_id];
 }
 
@@ -159,9 +162,10 @@ inline index_t Graph::indexOfUV(const vertex_id_t& node_id_u, const vertex_id_t&
 }
 
 inline edge_id_t Graph::getEdgeCount() {
-    edge_id_t count = 0;
-    for (auto lis : adjacency_list_) {
-        count += lis.size();
-    }
-    return count;
+    // edge_id_t count = 0;
+    // for (auto lis : adjacency_list_) {
+    //     count += lis.size();
+    // }
+    // return count;
+    return edge_count_;
 }

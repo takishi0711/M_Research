@@ -51,6 +51,7 @@ public :
     RandomWalker();
     RandomWalker(const uint64_t& source_node, const uint64_t& node_degree, const uint32_t& RWer_id, const uint64_t& HostID, const uint32_t& RWer_life);
     RandomWalker(const char* message); // メッセージから RWer 復元
+    RandomWalker(const uint32_t dummy); // ダミー RWer
 
     // メッセージIDを入れる
     void inputMessageID(const uint8_t& id);
@@ -218,7 +219,12 @@ inline RandomWalker::RandomWalker(const char* message) {
     }
 }
 
+inline RandomWalker::RandomWalker(const uint32_t dummy) {
+    inputMessageID(DUMMY);
+}
+
 inline void RandomWalker::inputMessageID(const uint8_t& id) {
+    ver_id_ &= ~MASK_MESSEGEID;
     ver_id_ |= id;
 }
 
