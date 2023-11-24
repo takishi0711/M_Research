@@ -45,9 +45,9 @@ int main(int argc, char *argv[]) {
 
     for (int i = 0; i < cnt; i++) {
 
-        // start.sendStartCache();
+        start.sendStartCache();
 
-        // std::this_thread::sleep_for(std::chrono::seconds(15));
+        std::this_thread::sleep_for(std::chrono::seconds(15));
 
         start.sendStart(ofs_time, ofs_rerun, RW_num);
 

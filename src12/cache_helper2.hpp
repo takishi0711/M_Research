@@ -66,7 +66,12 @@ inline vertex_id_t SimpleCache::getNextNode(const vertex_id_t& node_ID, const in
 }
 
 inline void SimpleCache::putIndex(const vertex_id_t& node_ID_u, const index_t& index_num, const vertex_id_t& node_ID_v) {
-    if (cache_size_ >= MAX_CACHE_SIZE) return;
+    // if (cache_size_ >= MAX_CACHE_SIZE) return;
+    if (cache_size_ + MY_EDGE_NUM >= MAX_CACHE_SIZE) {
+        CHECK_FLAG = false;
+        CACHE_GEN_FLAG = false;
+        return;
+    }
 
     bool exist_edge = false;
     {
@@ -84,7 +89,8 @@ inline void SimpleCache::putIndex(const vertex_id_t& node_ID_u, const index_t& i
             if (!cache_[node_ID_u].contains(index_num)) {
                 cache_[node_ID_u][index_num] = node_ID_v;
                 cache_size_++;
-                if (cache_size_ >= MAX_CACHE_SIZE) {
+                // if (cache_size_ >= MAX_CACHE_SIZE) {
+                if (cache_size_ + MY_EDGE_NUM >= MAX_CACHE_SIZE) {
                     CHECK_FLAG = false;
                     CACHE_GEN_FLAG = false;
                 }

@@ -15,6 +15,9 @@
 #include <thread>
 #include <memory>
 #include <utility>
+#include <mutex>
+#include <atomic>
+#include <unordered_map>
 
 #include "graph.hpp"
 #include "message_queue.hpp"
@@ -61,6 +64,9 @@ public :
     // send_queue から RWer を取ってきて他サーバへ送信する関数 (送信先毎)
     void sendMessage(const host_id_t& dst_host_id);
 
+    // send_queue から RWer を取ってきて他サーバへ送信する関数 (スレッド数固定)
+    void sendMessage2();
+
     // 他サーバからメッセージを受信し, message_queue に push する関数 (ポート番号毎)
     void receiveMessage(const uint16_t& port_num);
 
@@ -100,6 +106,11 @@ private :
     std::vector<std::thread> re_send_threads_;
     uint32_t re_send_count = 0;
 
+    // 送信スレッドの送信先決定用
+    host_id_t id_num_ = 0;
+    std::mutex mtx_id_num_;
+    std::atomic_bool* watching_queue_flag_;
+
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -114,9 +125,27 @@ inline ARWS::ARWS(const std::string& dir_path) {
 
     // 自サーバ の IP アドレス (NIC 依存)
     const char* ipname;
-    if (hostname_[0] == 'a') ipname = "em1"; // abilene
-    else if (hostname_[0] == 'e') ipname = "enp2s0"; // espresso
-    else ipname = "vlan151"; // giji-4
+    {
+        std::unordered_map<std::string, std::string> mp;
+        std::ifstream reading_file;
+        reading_file.open("./hostname_nic.txt", std::ios::in);
+        std::string reading_line_buffer;
+        while (std::getline(reading_file, reading_line_buffer)) { // 1 行ずつ読み取り
+            std::vector<std::string> words; // [hostname, nic]
+            std::stringstream sstream(reading_line_buffer);
+            std::string word;
+            while (std::getline(sstream, word, ' ')) { // 空白区切りで word を取り出す
+                words.push_back(word);
+            }
+            mp[words[0]] = words[1];
+        }  
+        ipname = mp[hostname_].c_str();
+        // debug
+        std::cout << "hostname: " << hostname_ << ", nic: " << mp[hostname_] << std::endl;
+    }
+    // if (hostname_[0] == 'a') ipname = "em1"; // abilene
+    // else if (hostname_[0] == 'e') ipname = "enp2s0"; // espresso
+    // else ipname = "vlan151"; // giji-4
 
     int fd;
     struct ifreq ifr;
@@ -127,19 +156,23 @@ inline ARWS::ARWS(const std::string& dir_path) {
     close(fd);
     hostip_ = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
     hostip_str_ = inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr);
+    // debug
+    std::cout << "hostip_str_: " << hostip_str_ << std::endl;
 
     // worker の IP アドレス情報を入手
-    std::ifstream reading_file;
-    reading_file.open("../graph_data/server.txt", std::ios::in);
-    std::string reading_line_buffer;
-    while (std::getline(reading_file, reading_line_buffer)) {
-        worker_ip_all_.emplace_back(inet_addr(reading_line_buffer.c_str()));
+    {
+        std::ifstream reading_file;
+        reading_file.open("../graph_data/server.txt", std::ios::in);
+        std::string reading_line_buffer;
+        while (std::getline(reading_file, reading_line_buffer)) {
+            worker_ip_all_.emplace_back(inet_addr(reading_line_buffer.c_str()));
+        }
+        for (int i = 0; i < worker_ip_all_.size(); i++) {
+            if (hostip_ == worker_ip_all_[i]) hostid_ = i;
+        }
+        // debug
+        std::cout << hostid_ << std::endl;
     }
-    for (int i = 0; i < worker_ip_all_.size(); i++) {
-        if (hostip_ == worker_ip_all_[i]) hostid_ = i;
-    }
-    // debug
-    std::cout << hostid_ << std::endl;
 
     // グラフファイル読み込み
     graph_.init(dir_path, hostip_str_, hostid_);
@@ -157,7 +190,12 @@ inline ARWS::ARWS(const std::string& dir_path) {
     // for (uint32_t ip : worker_ip_all_) {
     //     if (ip != hostip_) send_queue_[ip].getSize();
     // }
-    send_queue_ = new MessageQueue<RandomWalker>[worker_ip_all_.size()];
+    // SEND_QUEUE_NUM = worker_ip_all_.size();
+    watching_queue_flag_ = new std::atomic<bool>[SEND_QUEUE_NUM];
+    for (int i = 0; i < SEND_QUEUE_NUM; i++) {
+        watching_queue_flag_[i] = false;
+    }
+    send_queue_ = new MessageQueue<RandomWalker>[SEND_QUEUE_NUM];
 
     // 全てのスレッドを開始させる 
     start();
@@ -166,12 +204,15 @@ inline ARWS::ARWS(const std::string& dir_path) {
 inline void ARWS::start() {
 
     std::thread thread_generateRWer(&ARWS::generateRWer, this);
-    // std::thread thread_generateRWerCache(&ARWS::generateRWerForCache, this);
+    std::thread thread_generateRWerCache(&ARWS::generateRWerForCache, this);
 
     std::vector<std::thread> threads_sendMessage;
-    for (int i = 0; i < worker_ip_all_.size(); i++) {
-        if (i == hostid_) continue;
-        threads_sendMessage.emplace_back(std::thread(&ARWS::sendMessage, this, i));
+    // for (int i = 0; i < SEND_QUEUE_NUM; i++) {
+    //     if (i == hostid_) continue;
+    //     threads_sendMessage.emplace_back(std::thread(&ARWS::sendMessage, this, i));
+    // }
+    for (int i = 0; i < SEND2_THREAD_NUM; i++) {
+        threads_sendMessage.emplace_back(std::thread(&ARWS::sendMessage2, this));
     }
 
     std::vector<std::thread> threads_receiveMessage;
@@ -334,7 +375,7 @@ inline void ARWS::reSendThread() {
     std::cout << "time_per_step: " << time_per_step << std::endl;
     std::cout << "not end count: " << not_finished_RWer_id.size() << std::endl; 
 
-    // std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+    // std::this_thread::sleep_for(std::chrono::milliseconds(3000));
 
     StdRandNumGenerator gen;
 
@@ -376,9 +417,11 @@ inline void ARWS::reSendThread() {
 
         }
 
+        std::cout << "not end count: " << not_finished_RWer_id.size() << std::endl; 
+
         // break;
         
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(3000));
     }
 }
 
@@ -695,6 +738,117 @@ inline void ARWS::sendMessage(const host_id_t& dst_host_id) {
 
 }
 
+void ARWS::sendMessage2() {
+    std::cout << "send_message2" << std::endl;
+
+    // ソケットの生成
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    // debug 
+    // std::cout << sockfd << std::endl;
+    if (sockfd < 0) { // エラー処理
+        perror("socket");
+        exit(1); // 異常終了
+    } 
+
+    StdRandNumGenerator gen;
+    char message[MESSAGE_MAX_LENGTH];
+    memset(message, 0, MESSAGE_MAX_LENGTH);
+    uint8_t ver_id = RWERS;
+    uint16_t RWer_count = 0;
+    uint32_t now_length = 0;
+
+    // アドレスの生成
+    struct sockaddr_in addr; // 接続先の情報用の構造体(ipv4)
+    memset(&addr, 0, sizeof(struct sockaddr_in)); // memsetで初期化
+    addr.sin_family = AF_INET; // アドレスファミリ(ipv4)
+    // addr.sin_addr.s_addr = worker_ip_all_[dst_host_id]; // IPアドレス
+
+    // 送信関数
+    auto send_func = [&]() {
+        // メッセージのヘッダ情報を書き込む
+        // バージョン: 4bit (0), 
+        // メッセージID: 4bit (2),
+        // メッセージに含まれるRWerの個数: 16bit
+        memcpy(message, &ver_id, sizeof(ver_id));
+        memcpy(message + sizeof(ver_id), &RWer_count, sizeof(RWer_count));
+        now_length += sizeof(ver_id) + sizeof(RWer_count);
+
+        // ポート番号指定
+        addr.sin_port = htons(gen.genRandHostId(10000, 10000+RECV_PORT-1)); // ポート番号, htons()関数は16bitホストバイトオーダーをネットワークバイトオーダーに変換
+
+        // データ送信
+        sendto(sockfd, message, now_length, 0, (struct sockaddr *)&addr, sizeof(addr)); 
+
+        // debug
+        // std::cout << "send" << std::endl;
+
+        // 変数初期化
+        memset(message, 0, MESSAGE_MAX_LENGTH);
+        RWer_count = 0;
+        now_length = 0;
+    };
+
+    while (1) {
+        // 送信先id取得
+        host_id_t send_id = 0;
+        // debug 
+        // std::cout << "aa" << std::endl;
+        {
+            std::lock_guard<std::mutex> lk(mtx_id_num_);
+            while (id_num_ == hostid_ || watching_queue_flag_[id_num_]) {
+                id_num_ = (id_num_ + 1) % SEND_QUEUE_NUM;
+                // debug
+                // std::cout << "aa" << std::endl;
+            }
+            send_id = id_num_;
+            // debug
+            // std::cout << "send_id: " << send_id << std::endl;
+            watching_queue_flag_[send_id] = true;
+            id_num_ = (id_num_ + 1) % SEND_QUEUE_NUM;
+        }
+        addr.sin_addr.s_addr = worker_ip_all_[send_id];
+
+        // send_queue_ から RWer をまとめて取得
+        if (send_queue_[send_id].getSize() == 0) {
+            watching_queue_flag_[send_id] = false;
+            continue;
+        }
+        std::vector<std::unique_ptr<RandomWalker>> RWer_ptr_vec;
+        uint32_t vec_size = send_queue_[send_id].pop(RWer_ptr_vec);
+
+        watching_queue_flag_[send_id] = false;
+
+        // debug 
+        // std::cout << "vec_size: " << vec_size << std::endl;
+
+        int idx = 0;
+        while (idx < vec_size) {
+            // RWer データサイズ
+            uint32_t RWer_data_length = RWer_ptr_vec[idx]->getRWerSize();
+
+            if (now_length + RWer_data_length >= MESSAGE_MAX_LENGTH - sizeof(ver_id) - sizeof(RWer_count)) { // メッセージに収まりきらなくなったら送信
+                send_func();
+            }
+
+            // RWerの中身をメッセージに詰める
+            // memcpy(message + now_length, &RWer, RWer_data_length);
+            RWer_ptr_vec[idx]->writeMessage(message + sizeof(ver_id) + sizeof(RWer_count) + now_length);
+            now_length += RWer_data_length;
+            RWer_count++;
+            idx++;
+        }
+
+        // 残りを送信
+        if (RWer_count > 0) send_func();
+
+        // watching_queue_flag_[send_id] = false;
+
+        // debug
+        // std::cout << "send" << std::endl;
+
+    }
+}
+
 inline void ARWS::receiveMessage(const uint16_t& port_num) {
     std::cout << "receive_message: " << port_num << std::endl;
 
@@ -827,11 +981,7 @@ inline int ARWS::createTcpServerSocket(const uint16_t& port_num) {
 }
 
 inline void ARWS::sendToStartManager() {
-    // 再送用スレッドを停止させる
-    for (std::thread& th : re_send_threads_) {
-        th.join();
-    }
-    re_send_threads_.clear();
+    
 
     // start manager に送信するのは, RW 終了数, 実行時間
     uint32_t end_count = RW_manager_.getEndcnt();
@@ -844,8 +994,8 @@ inline void ARWS::sendToStartManager() {
     for (int i = 0; i < PROC_MESSAGE; i++) {
         std::cout << i << ": " << RWer_queue_[i].getSize() << std::endl;
     }
-    std::cout << "send_queue_size: " << worker_ip_all_.size() << std::endl;
-    for (int i = 0; i < worker_ip_all_.size(); i++) {
+    std::cout << "send_queue_size: " << SEND_QUEUE_NUM << std::endl;
+    for (int i = 0; i < SEND_QUEUE_NUM; i++) {
         std::cout << i << ": " << send_queue_[i].getSize() << std::endl;
     }
     std::cout << "re_send_count: " << re_send_count << std::endl;
@@ -890,6 +1040,12 @@ inline void ARWS::sendToStartManager() {
 
     // キャッシュデータのリセット
     // cache_.reset();
+
+    // 再送用スレッドを停止させる
+    for (std::thread& th : re_send_threads_) {
+        th.join();
+    }
+    re_send_threads_.clear();
 
     std::cout << "reset ok" << std::endl;
 
@@ -950,6 +1106,7 @@ inline void ARWS::generateRWerForCache() {
 
                 // debug
                 std::cout << "start" << std::endl;
+                std::cout << "cache: " << cache_.getEdgeCount() << std::endl;
             }
 
         }

@@ -75,6 +75,8 @@ inline void Graph::init(const std::string& dir_path, const std::string& host_id_
     edge_id_t read_e_num;
     read_graph(graph_file_path.c_str(), read_edges, read_e_num);
     edge_count_ = read_e_num;
+    MY_EDGE_NUM = edge_count_;
+    std::cout << "MY_EDGE_NUM: " << MY_EDGE_NUM << std::endl;
 
     // node_id の最大値を確認
     vertex_id_t mx_id = 0;
@@ -83,7 +85,7 @@ inline void Graph::init(const std::string& dir_path, const std::string& host_id_
     }
 
     // データ構造のサイズ指定
-    vertices_host_id_.resize(mx_id+1);
+    vertices_host_id_.resize(VERTEX_SIZE);
     adjacency_list_.resize(mx_id+1);
     degree_.resize(mx_id+1);
     has_v_.resize(VERTEX_SIZE);

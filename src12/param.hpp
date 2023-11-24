@@ -16,7 +16,7 @@ const uint32_t END_EXP = 5;
 const uint32_t DEAD_SEND = 6;
 const uint32_t DUMMY = 7;
 
-// パラメタ (スレッド数)
+// パラメタ
 const uint32_t RECV_PORT = 4;
 const uint32_t RECV_PER_PORT = 1;
 uint32_t PROC_MESSAGE = 15;
@@ -24,6 +24,8 @@ const uint32_t GENERATE_RWER = 15;
 const uint32_t GENERATE_RWER_CACHE = 4;
 uint32_t PROC_MESSAGE_CACHE = 10;
 const uint32_t WORK_STEP = 32;
+const uint32_t SEND2_THREAD_NUM = 4;
+uint32_t SEND_QUEUE_NUM = 7;
 
 // 十分に大きな値
 const uint32_t INF = 2001002003;
@@ -32,7 +34,8 @@ const uint32_t INF = 2001002003;
 const uint32_t MESSAGE_MAX_LENGTH = 8950;
 
 // キャッシュサイズの最大値
-const uint32_t MAX_CACHE_SIZE = 10000000;
+const uint32_t MAX_CACHE_SIZE = 0;
+uint32_t MY_EDGE_NUM = 0;
 
 // RW の実行ステップ (最初の RW_STEP_1 % を実行した後少しスリープ)
 const uint32_t RW_STEP_1 = 1;
@@ -41,7 +44,7 @@ const uint32_t RW_STEP_1 = 1;
 const uint32_t RW_STEP_2 = 10;
 
 // RW の実行ステップ (RW_STEP_3 回実行した後少しスリープ)
-const uint32_t RW_STEP_3 = 100000;
+const uint32_t RW_STEP_3 = 500000;
 
 // checkRWer をするかどうか
 bool CHECK_FLAG = false;
@@ -57,7 +60,7 @@ bool PROC_FLAG = true;
 
 // cache 用の実行を続けるためのフラグ
 bool CACHE_GEN_FLAG = true;
-const uint64_t MAX_RWER_NUM_FOR_CACHE = 10000000; 
+const uint64_t MAX_RWER_NUM_FOR_CACHE = 1000000000; 
 
 // RWer 生成の sleep を使うかどうか
 const bool GENERATE_SLEEP_FLAG = true;
