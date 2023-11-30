@@ -207,13 +207,13 @@ inline void ARWS::start() {
     std::thread thread_generateRWerCache(&ARWS::generateRWerForCache, this);
 
     std::vector<std::thread> threads_sendMessage;
-    // for (int i = 0; i < SEND_QUEUE_NUM; i++) {
-    //     if (i == hostid_) continue;
-    //     threads_sendMessage.emplace_back(std::thread(&ARWS::sendMessage, this, i));
-    // }
-    for (int i = 0; i < SEND2_THREAD_NUM; i++) {
-        threads_sendMessage.emplace_back(std::thread(&ARWS::sendMessage2, this));
+    for (int i = 0; i < SEND_QUEUE_NUM; i++) {
+        if (i == hostid_) continue;
+        threads_sendMessage.emplace_back(std::thread(&ARWS::sendMessage, this, i));
     }
+    // for (int i = 0; i < SEND2_THREAD_NUM; i++) {
+    //     threads_sendMessage.emplace_back(std::thread(&ARWS::sendMessage2, this));
+    // }
 
     std::vector<std::thread> threads_receiveMessage;
     for (int i = 0; i < RECV_PORT; i++) {

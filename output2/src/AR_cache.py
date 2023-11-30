@@ -33,10 +33,17 @@ xmin, xmax = 0, 8000
 
 print(y_AR_list)
 # ax1.bar(x, y_AR_list)
+
+x2 = np.array([1400])
+ax1.bar(x2, y_normal_AR, width=300, align="center", label='MyMethod (normal)')
+
 ax1.bar(x, y_AR_list, width=300, align="center", label='MyMethod (reuse edges)')
 
+# x2 = np.array([1400])
+# ax1.bar(x2, y_normal_AR, width=300, align="center", label='MyMethod (normal)')
+
 ax1.hlines(y_Kn, xmin, xmax, linestyles='dotted', colors='#2ca02c', label='KnightKing')
-ax1.hlines(y_normal_AR, xmin, xmax, linestyles='dotted', colors='#ff7f0e', label='MyMethod (normal)')
+# ax1.hlines(y_normal_AR, xmin, xmax, linestyles='dotted', colors='#ff7f0e', label='MyMethod (normal)')
 
 
 ax1.set_xlim(xmin, xmax)

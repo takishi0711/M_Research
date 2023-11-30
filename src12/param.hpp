@@ -25,7 +25,7 @@ const uint32_t GENERATE_RWER_CACHE = 4;
 uint32_t PROC_MESSAGE_CACHE = 10;
 const uint32_t WORK_STEP = 32;
 const uint32_t SEND2_THREAD_NUM = 4;
-uint32_t SEND_QUEUE_NUM = 7;
+uint32_t SEND_QUEUE_NUM = 5;
 
 // 十分に大きな値
 const uint32_t INF = 2001002003;
