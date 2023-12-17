@@ -149,6 +149,10 @@ inline vertex_id_t Graph::getNextNode(const vertex_id_t& current_node, const ver
 }
 
 inline bool Graph::hasVertex(const vertex_id_t& node_id) {
+    // debug
+    // if (node_id > VERTEX_SIZE) {
+    //     std::cout << "node_id: " << node_id << std::endl;
+    // }
     assert(node_id < VERTEX_SIZE);
     return has_v_[node_id];
 }

@@ -400,8 +400,18 @@ inline void ARWS::reSendThread() {
                 re_send_count++;
 
                 vertex_id_t node_id = RW_manager_.getNodeId(*it);
+                uint32_t life = RW_manager_.getRWerLife(*it);
+
+                // debug
+                // if (node_id > VERTEX_SIZE) {
+                //     std::cout << "RWer_id: " << *it << std::endl;
+                // }
+                // if (life > 100) {
+                //     std::cout << "life: " << life << std::endl;
+                // }
+
                 // RWer を生成
-                std::unique_ptr<RandomWalker> RWer_ptr(new RandomWalker(node_id, graph_.getDegree(node_id), *it, hostid_, RW_manager_.getRWerLife(*it)));
+                std::unique_ptr<RandomWalker> RWer_ptr(new RandomWalker(node_id, graph_.getDegree(node_id), *it, hostid_, life));
 
                 // 生成時刻を記録
                 RW_manager_.setStartTime(*it);
@@ -435,6 +445,11 @@ inline void ARWS::executeRandomWalk(std::unique_ptr<RandomWalker>&& RWer_ptr, St
         // RWer_ptr->printRWer();
 
         vertex_id_t current_node = RWer_ptr->getCurrentNode(); // 現在頂点
+
+        // debug
+        if (current_node > VERTEX_SIZE) {
+            RWer_ptr->printRWer();
+        }
 
         if (graph_.hasVertex(current_node)) { // 元グラフのデータを参照して RW
 
@@ -670,8 +685,8 @@ inline void ARWS::sendMessage(const host_id_t& dst_host_id) {
     } 
 
     StdRandNumGenerator gen;
-    char message[MESSAGE_MAX_LENGTH];
-    memset(message, 0, MESSAGE_MAX_LENGTH);
+    char message[MESSAGE_MAX_LENGTH_SEND];
+    memset(message, 0, MESSAGE_MAX_LENGTH_SEND);
     uint8_t ver_id = RWERS;
     uint16_t RWer_count = 0;
     uint32_t now_length = 0;
@@ -702,7 +717,7 @@ inline void ARWS::sendMessage(const host_id_t& dst_host_id) {
         // std::cout << "send" << std::endl;
 
         // 変数初期化
-        memset(message, 0, MESSAGE_MAX_LENGTH);
+        memset(message, 0, MESSAGE_MAX_LENGTH_SEND);
         RWer_count = 0;
         now_length = 0;
     };
@@ -718,9 +733,12 @@ inline void ARWS::sendMessage(const host_id_t& dst_host_id) {
             // RWer データサイズ
             uint32_t RWer_data_length = RWer_ptr_vec[idx]->getRWerSize();
 
-            if (now_length + RWer_data_length >= MESSAGE_MAX_LENGTH - sizeof(ver_id) - sizeof(RWer_count)) { // メッセージに収まりきらなくなったら送信
+            if (now_length + RWer_data_length >= MESSAGE_MAX_LENGTH_SEND - sizeof(ver_id) - sizeof(RWer_count)) { // メッセージに収まりきらなくなったら送信
                 send_func();
             }
+            // if (RWer_count > 0) {
+            //     send_func();
+            // }
 
             // RWerの中身をメッセージに詰める
             // memcpy(message + now_length, &RWer, RWer_data_length);
@@ -751,8 +769,8 @@ void ARWS::sendMessage2() {
     } 
 
     StdRandNumGenerator gen;
-    char message[MESSAGE_MAX_LENGTH];
-    memset(message, 0, MESSAGE_MAX_LENGTH);
+    char message[MESSAGE_MAX_LENGTH_SEND];
+    memset(message, 0, MESSAGE_MAX_LENGTH_SEND);
     uint8_t ver_id = RWERS;
     uint16_t RWer_count = 0;
     uint32_t now_length = 0;
@@ -783,7 +801,7 @@ void ARWS::sendMessage2() {
         // std::cout << "send" << std::endl;
 
         // 変数初期化
-        memset(message, 0, MESSAGE_MAX_LENGTH);
+        memset(message, 0, MESSAGE_MAX_LENGTH_SEND);
         RWer_count = 0;
         now_length = 0;
     };
@@ -826,7 +844,7 @@ void ARWS::sendMessage2() {
             // RWer データサイズ
             uint32_t RWer_data_length = RWer_ptr_vec[idx]->getRWerSize();
 
-            if (now_length + RWer_data_length >= MESSAGE_MAX_LENGTH - sizeof(ver_id) - sizeof(RWer_count)) { // メッセージに収まりきらなくなったら送信
+            if (now_length + RWer_data_length >= MESSAGE_MAX_LENGTH_SEND - sizeof(ver_id) - sizeof(RWer_count)) { // メッセージに収まりきらなくなったら送信
                 send_func();
             }
 
@@ -858,9 +876,9 @@ inline void ARWS::receiveMessage(const uint16_t& port_num) {
 
     while (1) {
         // messageを受信
-        char message[MESSAGE_MAX_LENGTH];
-        memset(message, 0, MESSAGE_MAX_LENGTH);
-        recv(sockfd, message, MESSAGE_MAX_LENGTH, 0);
+        char message[MESSAGE_MAX_LENGTH_RECV];
+        memset(message, 0, MESSAGE_MAX_LENGTH_RECV);
+        recv(sockfd, message, MESSAGE_MAX_LENGTH_RECV, 0);
 
         uint8_t ver_id = *(uint8_t*)message;
 
@@ -1023,7 +1041,7 @@ inline void ARWS::sendToStartManager() {
         connect(sockfd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)); // ソケット, アドレスポインタ, アドレスサイズ
 
         // データ送信 (hostip: 4B, end_count: 4B, all_execution_time: 8B)
-        char message[MESSAGE_MAX_LENGTH];
+        char message[MESSAGE_MAX_LENGTH_SEND];
         int idx = 0;
         memcpy(message + idx, &hostip_, sizeof(uint32_t)); idx += sizeof(uint32_t);
         memcpy(message + idx, &end_count, sizeof(uint32_t)); idx += sizeof(uint32_t);
@@ -1070,6 +1088,7 @@ inline void ARWS::generateRWerForCache() {
     start_cache_flag_.lockWhileFalse();
 
     Timer timer;
+    uint32_t RWer_id_all;
     #pragma omp parallel num_threads(GENERATE_RWER_CACHE) 
     {
         worker_id_t worker_id = omp_get_thread_num();
@@ -1113,10 +1132,11 @@ inline void ARWS::generateRWerForCache() {
 
         // debug 
         std::cout << RWer_id << std::endl;
+        RWer_id_all = RWer_id;
     }
 
     double execution_time = timer.duration();
-    std::cout << "ex_time: " << execution_time << "cache_size: " << cache_.getEdgeCount() << std::endl;
+    std::cout << "ex_time: " << execution_time << ", cache_size: " << cache_.getEdgeCount() << ", RWer_id_all: " << RWer_id_all << std::endl;
 
     // delete[] randgen;
     StdRandNumGenerator gen;
@@ -1144,10 +1164,11 @@ inline void ARWS::generateRWerForCache() {
         std::cout << "connect" << std::endl;
 
         // データ送信 (hostip: 4B, execution_time: 8B)
-        char message[MESSAGE_MAX_LENGTH];
+        char message[MESSAGE_MAX_LENGTH_SEND];
         int idx = 0;
         memcpy(message + idx, &hostip_, sizeof(uint32_t)); idx += sizeof(uint32_t);
-        memcpy(message + idx, &execution_time, sizeof(double)); idx += sizeof(double);
+        // memcpy(message + idx, &execution_time, sizeof(double)); idx += sizeof(double);
+        memcpy(message + idx, &RWer_id_all, sizeof(uint32_t)); idx += sizeof(uint32_t);
         send(sockfd, message, sizeof(message), 0); // 送信
         std::cout << "send" << std::endl;
 

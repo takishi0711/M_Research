@@ -143,6 +143,8 @@ inline void StartManager::sendStartCache() {
         int count = 0; // 終了の合図が来た回数
         int sockfd = createTcpServerSocket(); // サーバソケットを生成 (TCP)
 
+        uint32_t RWer_id_all_sum = 0;
+
         while (count < split_num_) {
             // 接続待ち
             std::cout << "wait" << std::endl;
@@ -160,14 +162,19 @@ inline void StartManager::sendStartCache() {
             recv(connect, message, sizeof(message), 0); // 受信 (hostip: 4B, execution_time: 8B)
             
             uint32_t* worker_ip = (uint32_t*)message;
-            double* execution_time = (double*)(message + sizeof(uint32_t));
-            std::cout << "worker_ip: " << *worker_ip << ", execution_time: " << *execution_time << std::endl;
+            // double* execution_time = (double*)(message + sizeof(uint32_t));
+            uint32_t* RWer_id_all = (uint32_t*)(message + sizeof(uint32_t));
+            // std::cout << "worker_ip: " << *worker_ip << ", execution_time: " << *execution_time << std::endl;
+            std::cout << "worker_ip: " << *worker_ip << ", RWer_id_all: " << *RWer_id_all << std::endl;
+            RWer_id_all_sum += *RWer_id_all;
 
             close(connect); // acceptしたソケットをclose
 
             count++;
         }
         close(sockfd);
+
+        std::cout << "ave_RWer_id: " << RWer_id_all_sum / split_num_ << std::endl;
     }
 
     // 全てのサーバで終了したことを伝える

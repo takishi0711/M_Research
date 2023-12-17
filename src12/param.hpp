@@ -31,10 +31,12 @@ uint32_t SEND_QUEUE_NUM = 5;
 const uint32_t INF = 2001002003;
 
 // パラメタ (メッセージ長)
-const uint32_t MESSAGE_MAX_LENGTH = 8950;
+// const uint32_t MESSAGE_MAX_LENGTH = 8950;
+const uint32_t MESSAGE_MAX_LENGTH_SEND = 8950;
+const uint32_t MESSAGE_MAX_LENGTH_RECV = 8950;
 
 // キャッシュサイズの最大値
-const uint32_t MAX_CACHE_SIZE = 0;
+const uint32_t MAX_CACHE_SIZE = 50000000;
 uint32_t MY_EDGE_NUM = 0;
 
 // RW の実行ステップ (最初の RW_STEP_1 % を実行した後少しスリープ)
