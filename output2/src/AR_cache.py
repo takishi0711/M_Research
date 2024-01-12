@@ -45,6 +45,21 @@ ax1.bar(x, y_AR_list, width=300, align="center", label='MyMethod (reuse edges)')
 ax1.hlines(y_Kn, xmin, xmax, linestyles='dotted', colors='#2ca02c', label='KnightKing')
 # ax1.hlines(y_normal_AR, xmin, xmax, linestyles='dotted', colors='#ff7f0e', label='MyMethod (normal)')
 
+# print(y_normal_AR)
+# print(y_AR_list)
+# print(y_Kn)
+
+# print(y_Kn / y_normal_AR)
+
+# for i in range(5):
+#     print(y_Kn / y_AR_list[i])
+
+print((y_normal_AR - y_AR_list[0]) / (2000 - 1400))
+print((y_normal_AR - y_AR_list[1]) / (3000 - 1400))
+print((y_normal_AR - y_AR_list[2]) / (4000 - 1400))
+print((y_normal_AR - y_AR_list[3]) / (5000 - 1400))
+print((y_normal_AR - y_AR_list[4]) / (6000 - 1400))
+
 
 ax1.set_xlim(xmin, xmax)
 ax1.set_ylim(0, 100)
@@ -56,4 +71,4 @@ ax1.legend()
 
 outname = '../picture/AR_cache.pdf'
 
-fig.savefig(outname)
+# fig.savefig(outname)

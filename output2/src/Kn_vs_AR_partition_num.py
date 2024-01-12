@@ -3,7 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 dataset = 'SBM_3'
+# dataset = 'LiveJournal'
 walker_num_per_vertex = 1000
+# walker_num_per_vertex = 10
 
 f_Kn_list = []
 f_AR_list = []
@@ -26,6 +28,18 @@ y_AR_list = []
 for i in range(3):
     y_Kn_list.append(np.average(data_Kn_list[i]))
     y_AR_list.append(np.average(data_AR_list[i]))
+
+print(y_Kn_list[0])
+print(y_Kn_list[1])
+print(y_Kn_list[2])
+print(y_Kn_list[1] / y_Kn_list[0])
+print(y_Kn_list[2] / y_Kn_list[1])
+
+print(y_AR_list[0])
+print(y_AR_list[1])
+print(y_AR_list[2])
+print(y_AR_list[0] / y_AR_list[1])
+print(y_AR_list[2] / y_AR_list[1])
 
 fig = plt.figure()
 ax1 = fig.add_subplot(111)
@@ -57,4 +71,4 @@ ax1.legend()
 
 outname = '../picture/Kn_vs_AR_partition_num_SBM_3.pdf'
 
-fig.savefig(outname)
+# fig.savefig(outname)

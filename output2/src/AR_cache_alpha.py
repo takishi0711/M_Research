@@ -47,6 +47,30 @@ ax1.bar(x, y_AR_list, width=300, align="center", label='MyMethod (reuse edges)')
 ax1.hlines(y_Kn, xmin, xmax, linestyles='dotted', colors='#2ca02c', label='KnightKing')
 # ax1.hlines(y_normal_AR, xmin, xmax, linestyles='dotted', colors='#ff7f0e', label='MyMethod (normal)')
 
+print(y_Kn)
+print(y_normal_AR)
+print(y_AR_list[0])
+print(y_AR_list[1])
+print(y_AR_list[2])
+print(y_AR_list[3])
+print(y_AR_list[4])
+
+# print(y_Kn / y_normal_AR)
+# print(y_Kn / y_AR_list[0])
+# print(y_Kn / y_AR_list[1])
+# print(y_Kn / y_AR_list[2])
+# print(y_Kn / y_AR_list[3])
+# print(y_Kn / y_AR_list[4])
+
+print(y_normal_AR / y_normal_AR)
+print(y_normal_AR / y_AR_list[0])
+print(y_normal_AR / y_AR_list[1])
+print(y_normal_AR / y_AR_list[2])
+print(y_normal_AR / y_AR_list[3])
+print(y_normal_AR / y_AR_list[4])
+
+
+
 
 ax1.set_xlim(xmin, xmax)
 ax1.set_ylim(0, 150)

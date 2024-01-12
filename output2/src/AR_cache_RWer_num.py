@@ -32,6 +32,12 @@ ax1 = fig.add_subplot(111)
 origin = 1400
 x = np.array([2000 - origin, 3000 - origin, 4000 - origin, 5000 - origin, 6000 - origin])
 
+print(y_AR_list[0])
+print(y_AR_list[1])
+print(y_AR_list[2])
+print(y_AR_list[3])
+print(y_AR_list[4])
+
 for i in range(5):
     y_AR_list[i] /= 1000000
     # x[i] /= 100
@@ -59,4 +65,4 @@ ax1.set_ylabel('needed_execution_num (x1,000,000)')
 
 outname = '../picture/AR_cache_RWer_num.pdf'
 
-fig.savefig(outname)
+# fig.savefig(outname)

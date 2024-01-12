@@ -60,6 +60,24 @@ for i in range(5):
     y_AR_300_list.append(np.average(data_AR_300_list[i]))
     y_AR_400_list.append(np.average(data_AR_400_list[i]))
 
+# print(y_Kn_list[3])
+# print(y_AR_list[3])
+# print(y_AR_200_list[3])
+# print(y_AR_300_list[3])
+# print(y_AR_400_list[3])
+# print(y_Kn_list[3] / y_AR_list[3])
+# print(y_Kn_list[3] / y_AR_200_list[3])
+# print(y_Kn_list[3] / y_AR_300_list[3])
+# print(y_Kn_list[3] / y_AR_400_list[3])
+
+print(y_AR_list[0] / y_AR_200_list[0])
+print(y_AR_list[0] / y_AR_300_list[0])
+print(y_AR_list[0] / y_AR_400_list[0])
+
+print(y_AR_list[3] / y_AR_200_list[3])
+print(y_AR_list[3] / y_AR_300_list[3])
+print(y_AR_list[3] / y_AR_400_list[3])
+
 fig = plt.figure()
 ax1 = fig.add_subplot(111)
 

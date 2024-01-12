@@ -23,6 +23,9 @@ for i in range(5):
     y_Kn_list.append(np.average(data_Kn_list[i]))
     y_AR_list.append(np.average(data_AR_list[i]))
 
+print(y_AR_list)
+print(y_Kn_list)
+
 fig = plt.figure()
 ax1 = fig.add_subplot(111)
 
@@ -53,4 +56,4 @@ ax1.legend()
 
 outname = '../picture/Kn_vs_AR_RTT.pdf'
 
-fig.savefig(outname)
+# fig.savefig(outname)

@@ -19,6 +19,9 @@ y_AR_list = []
 for i in range(2):
     y_AR_list.append(np.average(data_AR_list[i]))
 
+print(y_AR_list[0])
+print(y_AR_list[1])
+print(y_AR_list[0] / y_AR_list[1])
 
 fig = plt.figure()
 ax1 = fig.add_subplot(111)
