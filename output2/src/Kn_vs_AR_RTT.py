@@ -37,7 +37,7 @@ margin = 0
 totoal_width = 20 - margin
 
 # 棒グラフをプロット
-name = ['KnightKing', 'MyMethod']
+name = ['KnightKing', 'Proposed Method']
 for i, h in enumerate(data):
   pos = x - totoal_width *( 1- (2*i+1)/len(data) )/2
 #   if i == 0:
@@ -56,4 +56,4 @@ ax1.legend()
 
 outname = '../picture/Kn_vs_AR_RTT.pdf'
 
-# fig.savefig(outname)
+fig.savefig(outname)

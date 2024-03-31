@@ -35,9 +35,9 @@ print(y_AR_list)
 # ax1.bar(x, y_AR_list)
 
 x2 = np.array([1400])
-ax1.bar(x2, y_normal_AR, width=300, align="center", label='MyMethod (normal)')
+ax1.bar(x2, y_normal_AR, width=300, align="center", label='Proposed Method (normal)')
 
-ax1.bar(x, y_AR_list, width=300, align="center", label='MyMethod (reuse edges)')
+ax1.bar(x, y_AR_list, width=300, align="center", label='Proposed Method (reuse edges)')
 
 # x2 = np.array([1400])
 # ax1.bar(x2, y_normal_AR, width=300, align="center", label='MyMethod (normal)')
@@ -71,4 +71,4 @@ ax1.legend()
 
 outname = '../picture/AR_cache.pdf'
 
-# fig.savefig(outname)
+fig.savefig(outname)

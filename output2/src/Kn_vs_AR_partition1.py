@@ -89,7 +89,7 @@ margin = 0
 totoal_width = 0.4 - margin
 
 # 棒グラフをプロット
-name = ['KnightKing', 'MyMethod (normal)', 'origin + reuse = 2,000,000', 'origin + reuse = 3,000,000', 'origin + reuse = 4,000,000']
+name = ['KnightKing', 'Proposed Method (normal)', 'origin + reuse = 2,000,000', 'origin + reuse = 3,000,000', 'origin + reuse = 4,000,000']
 for i, h in enumerate(data):
   pos = x - totoal_width *( 1- (2*i+1)/len(data) )/2
 #   if i == 0:

@@ -52,7 +52,7 @@ margin = 0
 totoal_width = 0.7 - margin
 
 # 棒グラフをプロット
-name = ['KnightKing', 'MyMethod']
+name = ['KnightKing', 'Proposed Method']
 for i, h in enumerate(data):
   pos = x - totoal_width *( 1- (2*i+1)/len(data) )/2
 #   if i == 0:
@@ -69,6 +69,7 @@ ax1.set_ylabel('execution_time (sec)')
 
 ax1.legend()
 
+# outname = '../picture/Kn_vs_AR_partition_num_LiveJournal.pdf'
 outname = '../picture/Kn_vs_AR_partition_num_SBM_3.pdf'
 
-# fig.savefig(outname)
+fig.savefig(outname)

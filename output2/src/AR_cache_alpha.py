@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 dataset = 'LiveJournal'
 walker_num_per_vertex = 10
 
-alpha = 0.2
+alpha = 0.1
 
 f_AR_list = []
 f_AR_list.append('../data/' + 'AR_' + '2000' + '_' + 'alpha' + '_' + str(alpha) + '.txt')
@@ -37,9 +37,9 @@ print(y_AR_list)
 # ax1.bar(x, y_AR_list)
 
 x2 = np.array([1400])
-ax1.bar(x2, y_normal_AR, width=300, align="center", label='MyMethod (normal)')
+ax1.bar(x2, y_normal_AR, width=300, align="center", label='Proposed Method (normal)')
 
-ax1.bar(x, y_AR_list, width=300, align="center", label='MyMethod (reuse edges)')
+ax1.bar(x, y_AR_list, width=300, align="center", label='Proposed Method (reuse edges)')
 
 # x2 = np.array([1400])
 # ax1.bar(x2, y_normal_AR, width=300, align="center", label='MyMethod (normal)')
@@ -80,6 +80,6 @@ ax1.set_ylabel('execution_time (sec)')
 
 ax1.legend()
 
-outname = '../picture/AR_cache_alpha_0.2.pdf'
+outname = '../picture/AR_cache_alpha_0.1.pdf'
 
 fig.savefig(outname)
