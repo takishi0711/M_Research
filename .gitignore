@@ -1,1 +1,7 @@
-graph_data/
+graph_data/data/
+graph_data/ego_Facebook/
+graph_data/karate/
+graph_data/KnightKing/
+graph_data/LiveJournal/
+graph_data/SBM*/
+graph_data/source_data/
